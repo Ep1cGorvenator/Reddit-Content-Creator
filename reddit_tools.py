@@ -66,6 +66,8 @@ def content_extraction(subreddit_name: str, my_dict: dict, num_posts: int):
 
     # Format the output for the agent to easily understand
     for i, post in enumerate(top_posts):
+        if (len(post.selftext.split()) < 100): #skip posts with no content
+            continue
         formated_dict_toString += f"--- Post {i+1} ---\n"
         formated_dict_toString += f"Title: {post.title}\n"
         formated_dict_toString += f"Content: {post.selftext}\n\n"
