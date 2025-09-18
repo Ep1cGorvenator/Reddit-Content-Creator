@@ -1,6 +1,7 @@
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
+import reddit_tools
 
 def run_gemini_prompt(prompt):
     """

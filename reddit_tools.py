@@ -25,7 +25,7 @@ reddit = praw.Reddit(
 )
 
 # --- YOUR FIRST TOOL DEFINITION ---
-def get_reddit_posts(subreddit_name: str, num_posts: int = 1000000):
+def get_reddit_posts(subreddit_names: list, num_posts: int = 5):
     """
     A tool to fetch the top 'num_posts' from a given subreddit.
     
@@ -38,30 +38,49 @@ def get_reddit_posts(subreddit_name: str, num_posts: int = 1000000):
              or an error message if the subreddit is not found.
     """
     try:
-        subreddit = reddit.subreddit(subreddit_name)
-        top_posts = subreddit.hot(limit=num_posts)
-        
-        # Format the output for the agent to easily understand
         formatted_posts = ""
-        for i, post in enumerate(top_posts):
-            formatted_posts += f"--- Post {i+1} ---\n"
-            formatted_posts += f"Title: {post.title}\n"
-            formatted_posts += f"Content: {post.selftext}\n\n"
-            
+        my_dict = {} #contains {(Tile, Content),RankValue}
+
+        #Loop through our list of subreddits and perform content extraction
+        for subreddit_name in subreddit_names:
+            print(f"Extracting content from subreddit: r/{subreddit_name}")
+            formatted_posts += content_extraction(subreddit_name, my_dict, num_posts)
+        
+        #DEBUGGING PRINT STATEMENTS
+        print("Content extraction complete.\n\n\n")
+        # print(f"Formatted Posts Dictionary:\n\n\n {formatted_posts}")
+
+        #RETURN FORMATTED STRING OF THE DICTIONARY
         return formatted_posts
+    
     except Exception as e:
         return f"An error occurred: Could not find subreddit '{subreddit_name}' or another error happened. Details: {e}"
+
+
+#EXTRACT CONTENT FROM SINGLE SUBREDDIT
+def content_extraction(subreddit_name: str, my_dict: dict, num_posts: int):
+    subreddit = reddit.subreddit(subreddit_name)
+    top_posts = subreddit.hot(limit=num_posts)
+    
+    formated_dict_toString = ""
+
+    # Format the output for the agent to easily understand
+    for i, post in enumerate(top_posts):
+        formated_dict_toString += f"--- Post {i+1} ---\n"
+        formated_dict_toString += f"Title: {post.title}\n"
+        formated_dict_toString += f"Content: {post.selftext}\n\n"
+        my_dict[(post.title, post.selftext)] = i+1 #dic => {(Tile, Content),RankValue}
+
+    return formated_dict_toString
+
 
 # --- TESTING THE TOOL ---
 # This block allows you to test the function directly by running this file
 if __name__ == "__main__":
     # Choose a subreddit to test with
-    target_subreddit = "Cyberpunk" 
+    target_subreddit = ["Cyberpunk", "Futurology"]
     print(f"Fetching top posts from r/{target_subreddit}...")
     
     # Call the function
-    posts_data = get_reddit_posts(target_subreddit)
-    
-    # Print the results
     print("\n--- RESULTS ---")
-    print(posts_data)
+    posts_data = get_reddit_posts(target_subreddit)
