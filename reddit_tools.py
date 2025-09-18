@@ -43,7 +43,7 @@ def get_reddit_posts(subreddit_names: list, num_posts: int = 5):
 
         #Loop through our list of subreddits and perform content extraction
         for subreddit_name in subreddit_names:
-            print(f"Extracting content from subreddit: r/{subreddit_name}")
+            print(f"Extracting content from subreddit: {subreddit_name}")
             formatted_posts += content_extraction(subreddit_name, my_dict, num_posts)
         
         #DEBUGGING PRINT STATEMENTS

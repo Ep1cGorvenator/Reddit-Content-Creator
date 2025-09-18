@@ -1,8 +1,11 @@
 import os
+from urllib import response
 import google.generativeai as genai
 # Import the necessary enums for safety settings
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from dotenv import load_dotenv
+
+from reddit_tools import get_reddit_posts
 
 def run_gemini_prompt(prompt):
     """
@@ -36,6 +39,21 @@ def run_gemini_prompt(prompt):
         # The actual text is accessed via the .text attribute
         print("\n--- Gemini's Response ---")
         print(response.text)
+
+        # TEST TO GET REDDIT SUBREDDITS
+        from reddit_tools import get_reddit_posts
+
+        subreddit_list = [
+            sub.strip().removeprefix("r/")   # removes leading "r/"
+            for sub in response.text.split(",")
+        ]
+
+        print(f"\nExtracted Subreddits: {subreddit_list}")
+
+        reddit_content = get_reddit_posts(subreddit_list, num_posts=3)
+        print("\n--- Reddit Content ---")
+        print(reddit_content)
+        
 
     except Exception as e:
         print(f"\nAn error occurred: {e}")
