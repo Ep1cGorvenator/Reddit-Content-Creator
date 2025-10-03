@@ -37,24 +37,28 @@ def get_reddit_posts(subreddit_names: list, num_posts: int = 5):
         str: A formatted string containing the titles and content of the posts,
              or an error message if the subreddit is not found.
     """
-    try:
-        formatted_posts = ""
-        my_dict = {} #contains {(Tile, Content),RankValue}
+    formatted_posts = ""
+    my_dict = {} #contains {(Tile, Content),RankValue}
 
-        #Loop through our list of subreddits and perform content extraction
-        for subreddit_name in subreddit_names:
-            print(f"Extracting content from subreddit: {subreddit_name}")
+    #Loop through our list of subreddits and perform content extraction
+    for subreddit_name in subreddit_names:
+        print(f"Extracting content from subreddit: {subreddit_name}")
+
+        try:
+            reddit.subreddits.search_by_name(subreddit_name, exact=True)
             formatted_posts += content_extraction(subreddit_name, my_dict, num_posts)
-        
-        #DEBUGGING PRINT STATEMENTS
-        print("Content extraction complete.\n\n\n")
-        # print(f"Formatted Posts Dictionary:\n\n\n {formatted_posts}")
+        except Exception as e:
+            print(f"⚠️ Skipping subreddit '{subreddit_name}' due to error: {e}")
+            continue
 
-        #RETURN FORMATTED STRING OF THE DICTIONARY
-        return formatted_posts
-    
-    except Exception as e:
-        return f"An error occurred: Could not find subreddit '{subreddit_name}' or another error happened. Details: {e}"
+        
+        
+    #DEBUGGING PRINT STATEMENTS
+    print("Content extraction complete.\n\n\n")
+    # print(f"Formatted Posts Dictionary:\n\n\n {formatted_posts}")
+
+    #RETURN FORMATTED STRING OF THE DICTIONARY
+    return formatted_posts
 
 
 #EXTRACT CONTENT FROM SINGLE SUBREDDIT
@@ -65,6 +69,7 @@ def content_extraction(subreddit_name: str, my_dict: dict, num_posts: int):
     formated_dict_toString = ""
 
     # Format the output for the agent to easily understand
+    formated_dict_toString += f"\n\n--- Posts from r/{subreddit_name} ---\n\n"
     for i, post in enumerate(top_posts):
         if (len(post.selftext.split()) < 100): #skip posts with no content
             continue
