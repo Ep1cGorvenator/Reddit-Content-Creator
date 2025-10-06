@@ -11,7 +11,7 @@ CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
 CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
 USERNAME = os.getenv("REDDIT_USERNAME")
 PASSWORD = os.getenv("REDDIT_PASSWORD")
-USER_AGENT = "COMP301 Agent by u/YourRedditUsername" # Replace with your actual username
+USER_AGENT = "COMP301 Agent by u/DoNotEngage001" # Replace with your actual username
 
 # Initialize the Reddit instance with PRAW
 # The 'read_only=True' is important if you only plan to read posts
