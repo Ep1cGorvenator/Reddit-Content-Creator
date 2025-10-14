@@ -29,7 +29,7 @@ class RedditTools(BaseTool):
     name: str = "Reddit Content Fetcher"
     description: str = "Fetches hot posts from a list of subreddits."
 
-    def _run(self, subreddit_names: list, num_posts: int = 3) -> list[dict]:
+    def _run(self, subreddit_names: list, num_posts: int = 5) -> list[dict]:
         """
         Fetches 'num_posts' hot posts from each subreddit in the list.
         Returns a list of dictionaries, where each dictionary is a post.
