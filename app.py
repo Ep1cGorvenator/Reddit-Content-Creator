@@ -27,53 +27,75 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 def text_to_speech(text: str) -> bytes:
     """
-    Converts text to speech using Gemini 2.5 Pro TTS API.
+    Converts text to speech using Gemini TTS API.
     Returns audio bytes.
     """
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
         
-        # Configure TTS with Gemini
+        # Truncate text if too long (max ~5000 characters for TTS)
+        if len(text) > 4000:
+            text = text[:4000] + "..."
+        
+        # Configure TTS with Gemini - correct format
         response = client.models.generate_content(
             model="gemini-2.0-flash-exp",
             contents=text,
-            config={
-                "speech_config": {
-                    "voice_config": {
-                        "prebuilt_voice_config": {
-                            "voice_name": "Puck"  # Options: Puck, Charon, Kore, Fenrir, Aoede
-                        }
-                    }
-                }
-            }
+            config=genai.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=genai.SpeechConfig(
+                    voice_config=genai.VoiceConfig(
+                        prebuilt_voice_config=genai.PrebuiltVoiceConfig(
+                            voice_name="Puck"
+                        )
+                    )
+                )
+            )
         )
         
+        # Debug: Check response structure
+        st.write("Debug: Response received")
+        
         # Extract audio from response
-        audio_data = b""
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
-                if part.inline_data.mime_type.startswith("audio/"):
-                    audio_data = part.inline_data.data
-                    break
+        audio_data = None
+        if response.candidates:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'inline_data') and part.inline_data:
+                    if part.inline_data.mime_type.startswith("audio/"):
+                        audio_data = part.inline_data.data
+                        st.success(f"✅ Audio generated: {len(audio_data)} bytes")
+                        break
+        
+        if not audio_data:
+            st.warning("⚠️ No audio data found in response")
+            return None
         
         return audio_data
     
     except Exception as e:
-        st.error(f"TTS Error: {e}")
+        st.error(f"TTS Error: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
         return None
 
 def autoplay_audio(audio_bytes: bytes):
     """
     Creates an audio player that autoplays the generated speech.
     """
-    if audio_bytes:
+    if audio_bytes and len(audio_bytes) > 0:
         b64 = base64.b64encode(audio_bytes).decode()
+        # Try multiple audio formats
         audio_html = f"""
-            <audio autoplay>
+            <audio controls autoplay>
+                <source src="data:audio/wav;base64,{b64}" type="audio/wav">
                 <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                <source src="data:audio/mpeg;base64,{b64}" type="audio/mpeg">
+                Your browser does not support the audio element.
             </audio>
         """
         st.markdown(audio_html, unsafe_allow_html=True)
+    else:
+        st.warning("No audio data to play")
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -93,7 +115,7 @@ st.markdown("""
     }
     /* Dark Mode Placeholder */
     [data-theme="dark"] .stChatInput textarea::placeholder {
-        color: rgba(255, 255, 255, 0.4);
+        color: rgba(255, 255, 0.4);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -111,6 +133,14 @@ if "enable_tts" not in st.session_state:
 with st.sidebar:
     st.header("⚙️ Settings")
     st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
+    
+    # Voice selection
+    voice_options = ["Puck", "Charon", "Kore", "Fenrir", "Aoede"]
+    if "selected_voice" not in st.session_state:
+        st.session_state.selected_voice = "Puck"
+    
+    st.session_state.selected_voice = st.selectbox("Voice", voice_options, index=voice_options.index(st.session_state.selected_voice))
+    
     st.info("🎙️ When enabled, responses will be read aloud automatically.")
 
 # 1. Branding & Welcome Message
@@ -144,7 +174,6 @@ if prompt := st.chat_input("ask anything"):
                 crew_response = run_crew(prompt)
                 
                 # Convert CrewOutput to string
-                # CrewOutput has multiple ways to access the content
                 if hasattr(crew_response, 'raw'):
                     response = str(crew_response.raw)
                 elif hasattr(crew_response, 'result'):
@@ -158,7 +187,11 @@ if prompt := st.chat_input("ask anything"):
                 if st.session_state.enable_tts:
                     with st.spinner("Generating audio..."):
                         # Strip markdown formatting for cleaner speech
-                        clean_text = response.replace("#", "").replace("*", "").replace("-", "")
+                        clean_text = response.replace("#", "").replace("*", "").replace("-", "").replace("`", "")
+                        
+                        # Remove extra whitespace
+                        clean_text = " ".join(clean_text.split())
+                        
                         audio_bytes = text_to_speech(clean_text)
                         
                         if audio_bytes:
@@ -167,6 +200,8 @@ if prompt := st.chat_input("ask anything"):
             except Exception as e:
                 error_message = f"Sorry, an error occurred: {e}"
                 st.error(error_message)
+                import traceback
+                st.code(traceback.format_exc())
                 response = error_message
 
     # Append the agent's response to the history
