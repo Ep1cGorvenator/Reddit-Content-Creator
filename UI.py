@@ -1,9 +1,6 @@
-# app.py
 import streamlit as st
 import time
-import os
-import base64
-from google import genai
+from audio import Audio
 
 # To make this runnable, we need to import your main crew function.
 try:
@@ -20,82 +17,6 @@ except ImportError:
             "of the posts it analyzed.\n\n- Bullet points might be used.\n"
             "- **Bold text** could emphasize key ideas."
         )
-
-# --- Initialize Gemini Client ---
-# Set your API key here or use environment variable
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-def text_to_speech(text: str) -> bytes:
-    """
-    Converts text to speech using Gemini TTS API.
-    Returns audio bytes.
-    """
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        # Truncate text if too long (max ~5000 characters for TTS)
-        if len(text) > 4000:
-            text = text[:4000] + "..."
-        
-        # Configure TTS with Gemini - correct format
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
-            contents=text,
-            config=genai.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=genai.SpeechConfig(
-                    voice_config=genai.VoiceConfig(
-                        prebuilt_voice_config=genai.PrebuiltVoiceConfig(
-                            voice_name="Puck"
-                        )
-                    )
-                )
-            )
-        )
-        
-        # Debug: Check response structure
-        st.write("Debug: Response received")
-        
-        # Extract audio from response
-        audio_data = None
-        if response.candidates:
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, 'inline_data') and part.inline_data:
-                    if part.inline_data.mime_type.startswith("audio/"):
-                        audio_data = part.inline_data.data
-                        st.success(f"✅ Audio generated: {len(audio_data)} bytes")
-                        break
-        
-        if not audio_data:
-            st.warning("⚠️ No audio data found in response")
-            return None
-        
-        return audio_data
-    
-    except Exception as e:
-        st.error(f"TTS Error: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc())
-        return None
-
-def autoplay_audio(audio_bytes: bytes):
-    """
-    Creates an audio player that autoplays the generated speech.
-    """
-    if audio_bytes and len(audio_bytes) > 0:
-        b64 = base64.b64encode(audio_bytes).decode()
-        # Try multiple audio formats
-        audio_html = f"""
-            <audio controls autoplay>
-                <source src="data:audio/wav;base64,{b64}" type="audio/wav">
-                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                <source src="data:audio/mpeg;base64,{b64}" type="audio/mpeg">
-                Your browser does not support the audio element.
-            </audio>
-        """
-        st.markdown(audio_html, unsafe_allow_html=True)
-    else:
-        st.warning("No audio data to play")
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -127,21 +48,52 @@ if "messages" not in st.session_state:
 if "enable_tts" not in st.session_state:
     st.session_state.enable_tts = False
 
+if "audio_handler" not in st.session_state:
+    st.session_state.audio_handler = Audio()
+
 # --- UI Rendering ---
 
-# Sidebar for TTS settings
+# Sidebar for TTS settings and audio tester
 with st.sidebar:
     st.header("⚙️ Settings")
     st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
     
-    # Voice selection
-    voice_options = ["Puck", "Charon", "Kore", "Fenrir", "Aoede"]
+    # Voice selection (now mapped to accents)
+    voice_options = Audio.get_available_voices()
     if "selected_voice" not in st.session_state:
         st.session_state.selected_voice = "Puck"
     
-    st.session_state.selected_voice = st.selectbox("Voice", voice_options, index=voice_options.index(st.session_state.selected_voice))
+    st.session_state.selected_voice = st.selectbox(
+        "Voice (Accent)", 
+        voice_options, 
+        index=voice_options.index(st.session_state.selected_voice),
+        help="Different accents: Australian, British, US, Canadian, Indian"
+    )
     
     st.info("🎙️ When enabled, responses will be read aloud automatically.")
+    
+    # Add divider
+    st.markdown("---")
+    
+    # Audio Tester Section
+    with st.expander("🎙️ Audio Tester", expanded=False):
+        st.write("Test audio without generating content")
+        
+        test_text = st.text_area(
+            "Test text:",
+            value="Hello! This is a quick audio test.",
+            height=80,
+            key="sidebar_test_text"
+        )
+        
+        if st.button("🔊 Test Audio", key="sidebar_test_btn"):
+            if test_text.strip():
+                st.session_state.audio_handler.generate_and_play(
+                    test_text, 
+                    st.session_state.selected_voice
+                )
+            else:
+                st.warning("Enter some text to test")
 
 # 1. Branding & Welcome Message
 st.markdown(
@@ -183,19 +135,13 @@ if prompt := st.chat_input("ask anything"):
                 
                 st.markdown(response)
                 
-                # Generate TTS if enabled
+                # Generate TTS if enabled using the Audio class
                 if st.session_state.enable_tts:
-                    with st.spinner("Generating audio..."):
-                        # Strip markdown formatting for cleaner speech
-                        clean_text = response.replace("#", "").replace("*", "").replace("-", "").replace("`", "")
-                        
-                        # Remove extra whitespace
-                        clean_text = " ".join(clean_text.split())
-                        
-                        audio_bytes = text_to_speech(clean_text)
-                        
-                        if audio_bytes:
-                            autoplay_audio(audio_bytes)
+                    st.session_state.audio_handler.generate_and_play(
+                        response,
+                        st.session_state.selected_voice,
+                        show_spinner=True
+                    )
                 
             except Exception as e:
                 error_message = f"Sorry, an error occurred: {e}"
