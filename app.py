@@ -2,11 +2,10 @@
 import streamlit as st
 import time
 import google.generativeai as genai
-import base64
 import os
 
 # --- CONFIGURE GOOGLE API ---
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "your-api-key-here")  # Replace with your key or set env var
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")  # Replace with your key or set env var
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # --- GOOGLE TTS FUNCTION ---
