@@ -1,13 +1,11 @@
-# app.py
 import streamlit as st
 import time
+import UI_tools
+from audio import Audio
 
 # To make this runnable, we need to import your main crew function.
-# This assumes your main script is named 'main.py' and has a function
-# called 'run_crew(topic: str)' that kicks off the agent process and
-# returns the final generated text as a string.
 try:
-    from main import run_crew
+    from crew import run_crew
 except ImportError:
     # This is a placeholder function for UI testing if 'main.py' is not available.
     def run_crew(topic: str):
@@ -22,7 +20,6 @@ except ImportError:
         )
 
 # --- Page Configuration ---
-# Sets the page title, icon, and default layout.
 st.set_page_config(
     page_title="Gorilla Studios AI",
     page_icon="🦍",
@@ -31,8 +28,6 @@ st.set_page_config(
 )
 
 # --- Custom Styling ---
-# Injects custom CSS to style the placeholder text for the chat input,
-# making it more subtle as requested.
 st.markdown("""
 <style>
     /* Light Mode Placeholder */
@@ -42,17 +37,30 @@ st.markdown("""
     }
     /* Dark Mode Placeholder */
     [data-theme="dark"] .stChatInput textarea::placeholder {
-        color: rgba(255, 255, 255, 0.4);
+        color: rgba(255, 255, 0.4);
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Session State Initialization ---
-# Ensures that the message history is preserved across user interactions.
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+if "enable_tts" not in st.session_state:
+    st.session_state.enable_tts = False
+
+if "audio_handler" not in st.session_state:
+    st.session_state.audio_handler = Audio()
+
 # --- UI Rendering ---
+
+# Sidebar for TTS settings and audio tester(HANDLES AUDIO)
+with st.sidebar:
+    st.header("⚙️ Settings")
+    st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
+
+    #ADD AUDIO TESTER TO SIDEBAR
+    UI_tools.sidebar_audio_tester(st, Audio)
 
 # 1. Branding & Welcome Message
 st.markdown(
@@ -63,16 +71,23 @@ st.markdown(
     "<div style='text-align: center;'><p>Your personal content generation assistant. Enter a topic to get started!</p></div>",
     unsafe_allow_html=True
 )
-st.markdown("---") # Visual separator
+st.markdown("---")
 
 # 2. Display Chat History
-# Iterates through the stored messages and displays them in the chat interface.
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+#HELPER AUDIO FUNCTION
+def play_audio(response):
+    if st.session_state.enable_tts:
+        st.session_state.audio_handler.generate_and_play(
+            response,
+            st.session_state.selected_voice,
+            show_spinner=True
+        )
+
 # 3. User Input Field
-# Creates the chat input box at the bottom of the screen.
 if prompt := st.chat_input("ask anything"):
     # Append and display the user's message
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -83,13 +98,31 @@ if prompt := st.chat_input("ask anything"):
     with st.chat_message("assistant"):
         with st.spinner("Gorilla is thinking..."):
             try:
-                # This is where the agent logic is called.
-                # It takes the user's prompt and returns the final generated post.
-                response = run_crew(prompt)
+                # Call agent logic
+                crew_response = run_crew(prompt)
+
+                # Get a random intro generator
+                intro_cycle = str(UI_tools.get_intro_generator(prompt))
+
+                # Convert CrewOutput to string
+                if hasattr(crew_response, 'raw'):
+                    response = intro_cycle + str(crew_response.raw)
+                elif hasattr(crew_response, 'result'):
+                    response = intro_cycle + str(crew_response.result)
+                else:
+                    response = intro_cycle + str(crew_response)
+
+                # Display the response
                 st.markdown(response)
+                
+                # Generate TTS if enabled using the Audio class(HANDLES AUDIO)
+                play_audio(response)
+                
             except Exception as e:
                 error_message = f"Sorry, an error occurred: {e}"
                 st.error(error_message)
+                import traceback
+                st.code(traceback.format_exc())
                 response = error_message
 
     # Append the agent's response to the history

@@ -5,7 +5,7 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from dotenv import load_dotenv
 
-from reddit_tools import get_reddit_posts
+from old_reddit_tools import get_reddit_posts
 
 def run_gemini_prompt(prompt):
     """
@@ -41,7 +41,7 @@ def run_gemini_prompt(prompt):
         print(response.text)
 
         # TEST TO GET REDDIT SUBREDDITS
-        from reddit_tools import get_reddit_posts
+        from old_reddit_tools import get_reddit_posts
 
         subreddit_list = [
             sub.strip().removeprefix("r/")   # removes leading "r/"

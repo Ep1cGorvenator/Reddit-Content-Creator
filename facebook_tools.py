@@ -1,6 +1,6 @@
 from facebook import GraphAPI
 from dotenv import load_dotenv
-from api import facebook_access_token
+from api_keys import facebook_access_token
 import json
 
 load_dotenv()
