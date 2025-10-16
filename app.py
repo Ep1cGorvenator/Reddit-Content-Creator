@@ -1,7 +1,6 @@
 # app.py
 import streamlit as st
 import time
-import google.generativeai as genai
 import os
 import base64
 from google import genai
@@ -24,7 +23,7 @@ except ImportError:
 
 # --- Initialize Gemini Client ---
 # Set your API key here or use environment variable
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 def text_to_speech(text: str) -> bytes:
     """
@@ -34,27 +33,28 @@ def text_to_speech(text: str) -> bytes:
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
         
-        # Configure TTS with Gemini 2.5 Pro
+        # Configure TTS with Gemini
         response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",  # Use the appropriate model
+            model="gemini-2.0-flash-exp",
             contents=text,
-            config=types.GenerateContentConfig(
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name="Puck"  # Options: Puck, Charon, Kore, Fenrir, Aoede
-                        )
-                    )
-                )
-            )
+            config={
+                "speech_config": {
+                    "voice_config": {
+                        "prebuilt_voice_config": {
+                            "voice_name": "Puck"  # Options: Puck, Charon, Kore, Fenrir, Aoede
+                        }
+                    }
+                }
+            }
         )
         
         # Extract audio from response
         audio_data = b""
         for part in response.candidates[0].content.parts:
-            if part.inline_data and part.inline_data.mime_type.startswith("audio/"):
-                audio_data = part.inline_data.data
-                break
+            if hasattr(part, 'inline_data') and part.inline_data:
+                if part.inline_data.mime_type.startswith("audio/"):
+                    audio_data = part.inline_data.data
+                    break
         
         return audio_data
     
