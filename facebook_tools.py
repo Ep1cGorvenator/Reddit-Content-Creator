@@ -1,6 +1,6 @@
-from pyfacebook import GraphAPI
+from facebook import GraphAPI
 from dotenv import load_dotenv
-from api import facebook_access_token
+from api_keys import facebook_access_token
 
 load_dotenv()
 # Initialize the Facebook Graph API with the access token from environment variables

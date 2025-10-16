@@ -7,7 +7,7 @@ from google import genai
 
 # To make this runnable, we need to import your main crew function.
 try:
-    from main import run_crew
+    from crew import run_crew
 except ImportError:
     # This is a placeholder function for UI testing if 'main.py' is not available.
     def run_crew(topic: str):
