@@ -1,6 +1,8 @@
+# ui.py
 import streamlit as st
 import time
-import UI_tools
+# Assuming UI_tools and Audio are correctly implemented and available
+import UI_tools 
 from audio import Audio
 
 # To make this runnable, we need to import your main crew function.
@@ -52,14 +54,40 @@ if "enable_tts" not in st.session_state:
 if "audio_handler" not in st.session_state:
     st.session_state.audio_handler = Audio()
 
+# --- HELPER AUDIO FUNCTION ---
+def play_audio(response):
+    if st.session_state.enable_tts:
+        # Assuming selected_voice is set by the sidebar_audio_tester
+        if "selected_voice" not in st.session_state:
+             st.session_state.selected_voice = "Charon" 
+             
+        st.session_state.audio_handler.generate_and_play(
+            response,
+            st.session_state.selected_voice,
+            show_spinner=True
+        )
+
 # --- UI Rendering ---
 
-# Sidebar for TTS settings and audio tester(HANDLES AUDIO)
+# Sidebar for TTS settings and audio tester, including Clear Chat Button
 with st.sidebar:
+    st.title("🦍 Gorilla Engine")
+    st.markdown("### Content Generation Suite")
+    st.markdown("---") 
+    
+    # 📌 ADDED: Clear Chat Button using the UI_tools function
+    st.caption("Manage Conversation")
+    st.button(
+        "🗑️ Clear Chat", 
+        on_click=lambda: UI_tools.clear_chat_history(st), 
+        use_container_width=True
+    )
+    st.markdown("---")
+    
     st.header("⚙️ Settings")
     st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
 
-    #ADD AUDIO TESTER TO SIDEBAR
+    # ADD AUDIO TESTER TO SIDEBAR
     UI_tools.sidebar_audio_tester(st, Audio)
 
 # 1. Branding & Welcome Message
@@ -77,15 +105,6 @@ st.markdown("---")
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-
-#HELPER AUDIO FUNCTION
-def play_audio(response):
-    if st.session_state.enable_tts:
-        st.session_state.audio_handler.generate_and_play(
-            response,
-            st.session_state.selected_voice,
-            show_spinner=True
-        )
 
 # 3. User Input Field
 if prompt := st.chat_input("ask anything"):
@@ -115,7 +134,7 @@ if prompt := st.chat_input("ask anything"):
                 # Display the response
                 st.markdown(response)
                 
-                # Generate TTS if enabled using the Audio class(HANDLES AUDIO)
+                # Generate TTS if enabled using the Audio class
                 play_audio(response)
                 
             except Exception as e:
