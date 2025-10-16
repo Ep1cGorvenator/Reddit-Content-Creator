@@ -141,7 +141,17 @@ if prompt := st.chat_input("ask anything"):
         with st.spinner("Gorilla is thinking..."):
             try:
                 # Call agent logic
-                response = run_crew(prompt)
+                crew_response = run_crew(prompt)
+                
+                # Convert CrewOutput to string
+                # CrewOutput has multiple ways to access the content
+                if hasattr(crew_response, 'raw'):
+                    response = str(crew_response.raw)
+                elif hasattr(crew_response, 'result'):
+                    response = str(crew_response.result)
+                else:
+                    response = str(crew_response)
+                
                 st.markdown(response)
                 
                 # Generate TTS if enabled
