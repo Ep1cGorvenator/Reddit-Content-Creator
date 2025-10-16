@@ -10,10 +10,34 @@ def clear_chat_history(st):
     if "messages" in st.session_state:
         st.session_state.messages = []
     
-    # Optional: Clear other states if a starter prompt was clicked
     if "user_prompt" in st.session_state:
         del st.session_state.user_prompt
-
+        
+def display_quick_start_prompts(st):
+    """
+    Renders the quick start prompt buttons on the welcome page.
+    Sets 'st.session_state.user_prompt' upon button click to trigger processing.
+    """
+    st.markdown("---")
+    
+    # Grid for starter prompts (copied from your original design)
+    starter_prompts = [
+        "Write an engaging LinkedIn post about the future of AI in coding.",
+        "Generate a 5-tweet thread summarizing the new space telescope data.",
+        "Create an Instagram caption for a picture of a new coffee blend.",
+    ]
+    
+    st.subheader("Quick Start Prompts")
+    cols = st.columns(len(starter_prompts))
+    
+    for i, prompt in enumerate(starter_prompts):
+        with cols[i]:
+            # Use a lambda function to set the state and trigger rerun
+            if st.button(prompt, key=f"starter_prompt_{i}", use_container_width=True):
+                # When a button is clicked, set the prompt for ui.py to process
+                st.session_state.user_prompt = prompt
+                st.rerun() # Immediately rerun the script to jump to processing
+    
 # --- AUDIO TESTER IN SIDEBAR ---
 def sidebar_audio_tester(st, Audio):
     # Voice selection (now mapped to accents)
@@ -21,7 +45,6 @@ def sidebar_audio_tester(st, Audio):
     if "selected_voice" not in st.session_state:
         st.session_state.selected_voice = "Charon"
     
-    # Ensure the voice is in options before setting index
     voice_index = voice_options.index(st.session_state.selected_voice) if st.session_state.selected_voice in voice_options else 0
     
     st.session_state.selected_voice = st.selectbox(

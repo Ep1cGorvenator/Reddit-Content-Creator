@@ -1,7 +1,6 @@
 # ui.py
 import streamlit as st
 import time
-# Assuming UI_tools and Audio are correctly implemented and available
 import UI_tools 
 from audio import Audio
 
@@ -41,6 +40,7 @@ st.markdown("""
     [data-theme="dark"] .stChatInput textarea::placeholder {
         color: rgba(255, 255, 0.4);
     }
+    .center-text { text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -54,10 +54,10 @@ if "enable_tts" not in st.session_state:
 if "audio_handler" not in st.session_state:
     st.session_state.audio_handler = Audio()
 
-# --- HELPER AUDIO FUNCTION ---
+# --- CORE PROCESSING & HELPER FUNCTIONS ---
+
 def play_audio(response):
     if st.session_state.enable_tts:
-        # Assuming selected_voice is set by the sidebar_audio_tester
         if "selected_voice" not in st.session_state:
              st.session_state.selected_voice = "Charon" 
              
@@ -67,54 +67,16 @@ def play_audio(response):
             show_spinner=True
         )
 
-# --- UI Rendering ---
-
-# Sidebar for TTS settings and audio tester, including Clear Chat Button
-with st.sidebar:
-    st.title("🦍 Gorilla Engine")
-    st.markdown("### Content Generation Suite")
-    st.markdown("---") 
+def process_prompt(prompt: str):
+    """Handles the user input, calls the agent, and updates state."""
     
-    # 📌 ADDED: Clear Chat Button using the UI_tools function
-    st.caption("Manage Conversation")
-    st.button(
-        "🗑️ Clear Chat", 
-        on_click=lambda: UI_tools.clear_chat_history(st), 
-        use_container_width=True
-    )
-    st.markdown("---")
-    
-    st.header("⚙️ Settings")
-    st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
-
-    # ADD AUDIO TESTER TO SIDEBAR
-    UI_tools.sidebar_audio_tester(st, Audio)
-
-# 1. Branding & Welcome Message
-st.markdown(
-    "<div style='text-align: center;'><h1>🦍 Welcome to Gorilla Studios</h1></div>",
-    unsafe_allow_html=True,
-)
-st.markdown(
-    "<div style='text-align: center;'><p>Your personal content generation assistant. Enter a topic to get started!</p></div>",
-    unsafe_allow_html=True
-)
-st.markdown("---")
-
-# 2. Display Chat History
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# 3. User Input Field
-if prompt := st.chat_input("ask anything"):
     # Append and display the user's message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     # Display the agent's response
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="🦍"):
         with st.spinner("Gorilla is thinking..."):
             try:
                 # Call agent logic
@@ -146,3 +108,56 @@ if prompt := st.chat_input("ask anything"):
 
     # Append the agent's response to the history
     st.session_state.messages.append({"role": "assistant", "content": response})
+
+# --- UI RENDERING ---
+
+# Sidebar for TTS settings and audio tester, including Clear Chat Button
+with st.sidebar:
+    st.title("🦍 Gorilla Engine")
+    st.markdown("### Content Generation Suite")
+    st.markdown("---") 
+    
+    st.caption("Manage Conversation")
+    st.button(
+        "🗑️ Clear Chat", 
+        on_click=lambda: UI_tools.clear_chat_history(st), 
+        use_container_width=True
+    )
+    st.markdown("---")
+    
+    st.header("⚙️ Settings")
+    st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
+
+    UI_tools.sidebar_audio_tester(st, Audio)
+
+
+# --- MAIN CONTENT LOGIC ---
+
+# 1. Handle Quick Start Prompt Injection
+if "user_prompt" in st.session_state:
+    # A quick start button was clicked, process it and clear the state key
+    prompt = st.session_state.user_prompt
+    del st.session_state.user_prompt
+    process_prompt(prompt)
+    st.rerun() # Rerun to properly display the new messages
+
+# 2. Display Welcome/History
+if not st.session_state.messages:
+    # If no messages, show the guided welcome screen (Branding + Quick Start Prompts)
+    st.markdown("<div class='center-text'>", unsafe_allow_html=True)
+    st.header("🦍 Welcome to Gorilla Studios")
+    st.markdown("Your personal content generation assistant. Enter a topic to get started!")
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Use the UI_tools function to render the prompt buttons
+    UI_tools.display_quick_start_prompts(st)
+
+else:
+    # If messages exist, display the chat history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"], avatar=("🦍" if message["role"] == "assistant" else None)):
+            st.markdown(message["content"])
+
+# 3. User Input Field
+if prompt := st.chat_input("ask anything"):
+    process_prompt(prompt)
