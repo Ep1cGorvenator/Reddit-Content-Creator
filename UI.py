@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import UI_tools
 from audio import Audio
 
 # To make this runnable, we need to import your main crew function.
@@ -53,47 +54,13 @@ if "audio_handler" not in st.session_state:
 
 # --- UI Rendering ---
 
-# Sidebar for TTS settings and audio tester
+# Sidebar for TTS settings and audio tester(HANDLES AUDIO)
 with st.sidebar:
     st.header("⚙️ Settings")
     st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
-    
-    # Voice selection (now mapped to accents)
-    voice_options = Audio.get_available_voices()
-    if "selected_voice" not in st.session_state:
-        st.session_state.selected_voice = "Puck"
-    
-    st.session_state.selected_voice = st.selectbox(
-        "Voice (Accent)", 
-        voice_options, 
-        index=voice_options.index(st.session_state.selected_voice),
-        help="Different accents: Australian, British, US, Canadian, Indian"
-    )
-    
-    st.info("🎙️ When enabled, responses will be read aloud automatically.")
-    
-    # Add divider
-    st.markdown("---")
-    
-    # Audio Tester Section
-    with st.expander("🎙️ Audio Tester", expanded=False):
-        st.write("Test audio without generating content")
-        
-        test_text = st.text_area(
-            "Test text:",
-            value="Hello! This is a quick audio test.",
-            height=80,
-            key="sidebar_test_text"
-        )
-        
-        if st.button("🔊 Test Audio", key="sidebar_test_btn"):
-            if test_text.strip():
-                st.session_state.audio_handler.generate_and_play(
-                    test_text, 
-                    st.session_state.selected_voice
-                )
-            else:
-                st.warning("Enter some text to test")
+
+    #ADD AUDIO TESTER TO SIDEBAR
+    UI_tools.sidebar_audio_tester(st, Audio)
 
 # 1. Branding & Welcome Message
 st.markdown(
@@ -111,6 +78,15 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+#HELPER AUDIO FUNCTION
+def play_audio(response):
+    if st.session_state.enable_tts:
+        st.session_state.audio_handler.generate_and_play(
+            response,
+            st.session_state.selected_voice,
+            show_spinner=True
+        )
+
 # 3. User Input Field
 if prompt := st.chat_input("ask anything"):
     # Append and display the user's message
@@ -124,24 +100,23 @@ if prompt := st.chat_input("ask anything"):
             try:
                 # Call agent logic
                 crew_response = run_crew(prompt)
-                
+
+                # Get a random intro generator
+                intro_cycle = str(UI_tools.get_intro_generator(prompt))
+
                 # Convert CrewOutput to string
                 if hasattr(crew_response, 'raw'):
-                    response = str(crew_response.raw)
+                    response = intro_cycle + str(crew_response.raw)
                 elif hasattr(crew_response, 'result'):
-                    response = str(crew_response.result)
+                    response = intro_cycle + str(crew_response.result)
                 else:
-                    response = str(crew_response)
-                
+                    response = intro_cycle + str(crew_response)
+
+                # Display the response
                 st.markdown(response)
                 
-                # Generate TTS if enabled using the Audio class
-                if st.session_state.enable_tts:
-                    st.session_state.audio_handler.generate_and_play(
-                        response,
-                        st.session_state.selected_voice,
-                        show_spinner=True
-                    )
+                # Generate TTS if enabled using the Audio class(HANDLES AUDIO)
+                play_audio(response)
                 
             except Exception as e:
                 error_message = f"Sorry, an error occurred: {e}"
