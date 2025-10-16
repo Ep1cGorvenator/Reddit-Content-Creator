@@ -1,17 +1,36 @@
 # app.py
 import streamlit as st
 import time
+import google.generativeai as genai
+import base64
+import os
 
-# To make this runnable, we need to import your main crew function.
-# This assumes your main script is named 'main.py' and has a function
-# called 'run_crew(topic: str)' that kicks off the agent process and
-# returns the final generated text as a string.
+# --- CONFIGURE GOOGLE API ---
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "your-api-key-here")  # Replace with your key or set env var
+genai.configure(api_key=GOOGLE_API_KEY)
+
+# --- GOOGLE TTS FUNCTION ---
+def generate_speech(text: str, voice="en-US", output_format="mp3") -> bytes:
+    """
+    Uses Gemini's TTS model to synthesize speech from text.
+    Returns audio bytes that can be played in Streamlit.
+    """
+    model = genai.GenerativeModel("models/tts")
+    
+    response = model.generate_audio(
+        text=text,
+        voice=voice,
+        audio_format=output_format  # 'mp3' or 'ogg'
+    )
+
+    # response.audio is a byte stream (not base64)
+    return response.audio  # bytes
+
+# --- Import Your Crew Agent ---
 try:
     from main import run_crew
 except ImportError:
-    # This is a placeholder function for UI testing if 'main.py' is not available.
     def run_crew(topic: str):
-        # Simulate agent thinking time
         time.sleep(2)
         return (
             f"### This is a placeholder response for the topic: '{topic}'\n\n"
@@ -21,8 +40,7 @@ except ImportError:
             "- **Bold text** could emphasize key ideas."
         )
 
-# --- Page Configuration ---
-# Sets the page title, icon, and default layout.
+# --- Streamlit Setup ---
 st.set_page_config(
     page_title="Gorilla Studios AI",
     page_icon="🦍",
@@ -30,67 +48,54 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-# --- Custom Styling ---
-# Injects custom CSS to style the placeholder text for the chat input,
-# making it more subtle as requested.
 st.markdown("""
 <style>
-    /* Light Mode Placeholder */
     .stChatInput textarea::placeholder {
         color: rgba(0, 0, 0, 0.35);
         opacity: 1;
     }
-    /* Dark Mode Placeholder */
     [data-theme="dark"] .stChatInput textarea::placeholder {
         color: rgba(255, 255, 255, 0.4);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Session State Initialization ---
-# Ensures that the message history is preserved across user interactions.
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# --- UI Rendering ---
+# --- Branding ---
+st.markdown("<div style='text-align: center;'><h1>🦍 Welcome to Gorilla Studios</h1></div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center;'><p>Your personal content generation assistant. Enter a topic to get started!</p></div>", unsafe_allow_html=True)
+st.markdown("---")
 
-# 1. Branding & Welcome Message
-st.markdown(
-    "<div style='text-align: center;'><h1>🦍 Welcome to Gorilla Studios</h1></div>",
-    unsafe_allow_html=True,
-)
-st.markdown(
-    "<div style='text-align: center;'><p>Your personal content generation assistant. Enter a topic to get started!</p></div>",
-    unsafe_allow_html=True
-)
-st.markdown("---") # Visual separator
-
-# 2. Display Chat History
-# Iterates through the stored messages and displays them in the chat interface.
+# --- Chat History Display ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 3. User Input Field
-# Creates the chat input box at the bottom of the screen.
+# --- Input Box ---
 if prompt := st.chat_input("ask anything"):
-    # Append and display the user's message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Display the agent's response
+    # --- Agent Response ---
     with st.chat_message("assistant"):
         with st.spinner("Gorilla is thinking..."):
             try:
-                # This is where the agent logic is called.
-                # It takes the user's prompt and returns the final generated post.
                 response = run_crew(prompt)
                 st.markdown(response)
+
+                # --- TTS Integration ---
+                try:
+                    audio_data = generate_speech(response)
+                    st.audio(audio_data, format="audio/mp3")
+                except Exception as tts_error:
+                    st.warning(f"Generated text, but TTS failed: {tts_error}")
+
             except Exception as e:
                 error_message = f"Sorry, an error occurred: {e}"
                 st.error(error_message)
                 response = error_message
 
-    # Append the agent's response to the history
     st.session_state.messages.append({"role": "assistant", "content": response})
