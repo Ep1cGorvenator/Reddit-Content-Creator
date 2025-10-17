@@ -1,25 +1,31 @@
 # ui.py
 import streamlit as st
 import time
+# Note: Streamlit uses standard library for external browser opening
+import facebook_tools 
 import UI_tools 
-from audio import Audio
-import facebook_tools
 
-# To make this runnable, we need to import your main crew function.
+# --- MOCK IMPORTS FOR RUNNABILITY ---
+# Create mock classes if your actual files aren't available for testing
+class MockAudio:
+    @staticmethod
+    def get_available_voices(): return ["Charon", "Aurora", "Echo"]
+    def generate_and_play(self, text, voice, show_spinner=False): 
+        st.caption(f"🔊 Mocking audio for: {voice}")
+
+try:
+    from audio import Audio
+except ImportError:
+    Audio = MockAudio # Use mock if not found
+
 try:
     from crew import run_crew
 except ImportError:
-    # This is a placeholder function for UI testing if 'main.py' is not available.
     def run_crew(topic: str):
-        # Simulate agent thinking time
         time.sleep(2)
-        return (
-            f"### This is a placeholder response for the topic: '{topic}'\n\n"
-            "The full agent crew is not connected. This is a sample of what the "
-            "generated post would look like. It would mimic the style and tone "
-            "of the posts it analyzed.\n\n- Bullet points might be used.\n"
-            "- **Bold text** could emphasize key ideas."
-        )
+        return (f"### Placeholder response for topic: '{topic}'\n\nContent generated successfully.")
+# ------------------------------------
+
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -54,6 +60,12 @@ if "enable_tts" not in st.session_state:
 
 if "audio_handler" not in st.session_state:
     st.session_state.audio_handler = Audio()
+        
+# --- Facebook Authentication State ---
+# This must be set to True by your separate Flask/OAuth callback logic 
+if "facebook_token_ready" not in st.session_state:
+    st.session_state.facebook_token_ready = False 
+
 
 # --- CORE PROCESSING & HELPER FUNCTIONS ---
 
@@ -71,22 +83,17 @@ def play_audio(response):
 def process_prompt(prompt: str):
     """Handles the user input, calls the agent, and updates state."""
     
-    # Append and display the user's message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Display the agent's response
     with st.chat_message("assistant", avatar="🦍"):
         with st.spinner("Gorilla is thinking..."):
             try:
-                # Call agent logic
                 crew_response = run_crew(prompt)
-
-                # Get a random intro generator
                 intro_cycle = str(UI_tools.get_intro_generator(prompt))
 
-                # Convert CrewOutput to string
+                # Handle crew output conversion
                 if hasattr(crew_response, 'raw'):
                     response = intro_cycle + str(crew_response.raw)
                 elif hasattr(crew_response, 'result'):
@@ -94,10 +101,7 @@ def process_prompt(prompt: str):
                 else:
                     response = intro_cycle + str(crew_response)
 
-                # Display the response
                 st.markdown(response)
-                
-                # Generate TTS if enabled using the Audio class
                 play_audio(response)
                 
             except Exception as e:
@@ -106,8 +110,7 @@ def process_prompt(prompt: str):
                 import traceback
                 st.code(traceback.format_exc())
                 response = error_message
-    #Publish to 
-    # Append the agent's response to the history
+    
     st.session_state.messages.append({"role": "assistant", "content": response})
 
 # --- UI RENDERING ---
@@ -129,45 +132,94 @@ with st.sidebar:
     st.header("⚙️ Settings")
     st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
 
+    # Note: Using the initialized Audio handler
     UI_tools.sidebar_audio_tester(st, Audio)
 
-    # --- Publish to Facebook (Visible After Response) ---
+
+    # --- Publish/Connect to Facebook (Visible After First Response) ---
     if st.session_state.messages and any(msg["role"] == "assistant" for msg in st.session_state.messages):
         st.markdown("---")
-        st.subheader("📤 Publish")
-        if st.button("📤 Publish to Facebook", use_container_width=True):
-    # 🔹 This block runs when the button is pressed
-            st.write("Publishing...")  # (you’ll see this in the app immediately)
-            if __name__ == '__main__':
-                # You MUST set FACEBOOK_APP_ID and FACEBOOK_APP_SECRET in your environment!
-                # For local development, Flask typically runs on port 5000.
-                # The Redirect URI in your Meta App settings should be something like:
-                # http://127.0.0.1:5000/facebook-callback or http://localhost:5000/facebook-callback
-                facebook_tools.app.run(debug=True)
+        st.subheader("📤 Publishing")
+        
+        # Logic to decide which button to show: Connect or Publish
+        if not st.session_state.facebook_token_ready:
+            
+            # --- STAGE 1: CONNECT BUTTON (Triggers state-driven redirect) ---
+            if st.button("🔗 Connect Facebook Account", use_container_width=True):
+                with st.spinner("Generating login URL..."):
+                    try:
+                        # 1. Get the OAuth URL from your facebook_tools.py
+                        login_url = facebook_tools.get_facebook_login_url()
+                        
+                        # 2. Store the URL and force a rerun to display the st.link_button (THE FIX)
+                        st.session_state.facebook_login_url = login_url 
+                        st.info("A link to the Facebook login page is ready below.")
+                        st.rerun() 
+                        
+                    except Exception as e:
+                        st.error(f"Error generating login link: {e}")
+                
+        else:
+            # --- STAGE 2: PUBLISH BUTTON (Token is ready) ---
+            st.success("✅ Facebook Connected! Ready to publish.")
+            
+            # Get the most recent assistant response
+            assistant_messages = [msg["content"] for msg in st.session_state.messages if msg["role"] == "assistant"]
+            post_content = assistant_messages[-1] if assistant_messages else "No content generated yet."
+
+            if st.button("🚀 Publish Generated Post", use_container_width=True):
+                with st.spinner("Publishing to Facebook..."):
+                    try:
+                        # Call the synchronous publish function
+                        facebook_tools.publish_post(post_content) 
+                        st.success("Post successfully published! 🎉")
+                        
+                    except Exception as e:
+                        st.error(f"Publishing failed. Error: {e}")
 
 
 # --- MAIN CONTENT LOGIC ---
 
 # 1. Handle Quick Start Prompt Injection
 if "user_prompt" in st.session_state:
-    # A quick start button was clicked, process it and clear the state key
     prompt = st.session_state.user_prompt
     del st.session_state.user_prompt
     process_prompt(prompt)
-    st.rerun() # Rerun to properly display the new messages
+    st.rerun() 
 
 # 2. Display Welcome/History
 if not st.session_state.messages:
-    # If no messages, show the guided welcome screen (Branding + Quick Start Prompts)
+    # --- HANDLE PENDING REDIRECT LINK AFTER STAGE 1 BUTTON PRESS ---
+    if "facebook_login_url" in st.session_state:
+        # Display the link button immediately and clear state
+        st.link_button(
+            "Click here to Authorize on Facebook", 
+            st.session_state.facebook_login_url, 
+            type="primary", 
+            help="Opens Facebook login in a new tab."
+        )
+        del st.session_state.facebook_login_url
+    # -------------------------------------------------------------
+        
     st.markdown("<div class='center-text'>", unsafe_allow_html=True)
     st.header("🦍 Welcome to Gorilla Studios")
     st.markdown("Your personal content generation assistant. Enter a topic to get started!")
     st.markdown("</div>", unsafe_allow_html=True)
     
-    # Use the UI_tools function to render the prompt buttons
     UI_tools.display_quick_start_prompts(st)
 
 else:
+    # --- HANDLE PENDING REDIRECT LINK AFTER STAGE 1 BUTTON PRESS ---
+    if "facebook_login_url" in st.session_state:
+        st.link_button(
+            "Click here to Authorize on Facebook", 
+            st.session_state.facebook_login_url, 
+            type="primary", 
+            help="Opens Facebook login in a new tab."
+        )
+        del st.session_state.facebook_login_url
+    # -------------------------------------------------------------
+    
     # If messages exist, display the chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"], avatar=("🦍" if message["role"] == "assistant" else None)):
