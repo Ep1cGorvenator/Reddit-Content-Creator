@@ -1,5 +1,8 @@
+# ui.py
 import streamlit as st
+import base64 as bs64
 import time
+import UI_tools 
 from audio import Audio
 from video_gen import VideoGenerator
 import tempfile
@@ -48,6 +51,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+UI_tools.setUp_CSS(st)
 
 # --- Session State Initialization ---
 if "messages" not in st.session_state:
@@ -66,181 +70,7 @@ if "video_handler" not in st.session_state:
     st.session_state.video_handler = VideoGenerator(base_video_path="base_video.mp4")
 
 # --- UI Rendering ---
-
-# Sidebar for TTS settings, video settings, and audio tester
-with st.sidebar:
-    st.header("⚙️ Settings")
-    
-    # TTS Settings
-    st.subheader("🎤 Audio Settings")
-    st.session_state.enable_tts = st.checkbox(
-        "Enable Text-to-Speech", 
-        value=st.session_state.enable_tts,
-        help="Play generated audio automatically"
-    )
-    
-    # Voice selection (now mapped to accents)
-    voice_options = Audio.get_available_voices()
-    if "selected_voice" not in st.session_state:
-        st.session_state.selected_voice = "Charon"  # Default voice
-    
-    st.session_state.selected_voice = st.selectbox(
-        "Voice (Accent)", 
-        voice_options, 
-        index=voice_options.index(st.session_state.selected_voice),
-        help="Different accents: Australian, British, US, Canadian, Indian"
-    )
-    
-    if st.session_state.enable_tts:
-        st.info("🎙️ Responses will be read aloud automatically.")
-    
-    st.markdown("---")
-    
-    # Video Settings
-    st.subheader("🎬 Video Settings")
-    
-    # Check if base video exists
-    video_exists = os.path.exists("base_video.mp4")
-    
-    if video_exists:
-        # Get video file size
-        video_size_mb = os.path.getsize("base_video.mp4") / (1024 * 1024)
-        st.success(f"✅ Base video: base_video.mp4 ({video_size_mb:.1f} MB)")
-    else:
-        st.error("❌ base_video.mp4 not found!")
-        st.info("📁 Place your video as 'base_video.mp4' in the same folder as UI.py")
-    
-    # Check for background music
-    bg_music_exists = os.path.exists("bg_music.mp3")
-    
-    if bg_music_exists:
-        # Get music file size
-        music_size_mb = os.path.getsize("bg_music.mp3") / (1024 * 1024)
-        st.success(f"✅ Background music: bg_music.mp3 ({music_size_mb:.1f} MB)")
-        
-        # Background music toggle
-        if "use_bg_music" not in st.session_state:
-            st.session_state.use_bg_music = True
-        
-        st.session_state.use_bg_music = st.checkbox(
-            "Use Background Music",
-            value=st.session_state.use_bg_music,
-            help="Add background music to generated videos"
-        )
-        
-        # Background music volume control (only show if music is enabled)
-        if st.session_state.use_bg_music:
-            if "bg_music_volume" not in st.session_state:
-                st.session_state.bg_music_volume = 0.10  # Default 10%
-            
-            # Volume slider with percentage display
-            volume_percent = int(st.session_state.bg_music_volume * 100)
-            
-            st.session_state.bg_music_volume = st.slider(
-                f"🎵 Music Volume: {volume_percent}%",
-                min_value=0.0,
-                max_value=0.60,
-                value=st.session_state.bg_music_volume,
-                step=0.02,
-                help="Adjust background music volume (0% = silent, 60% = loud)",
-                label_visibility="visible"
-            )
-            
-            # Volume indicator
-            if st.session_state.bg_music_volume == 0:
-                st.caption("🔇 Music muted")
-            elif st.session_state.bg_music_volume < 0.15:
-                st.caption("🔉 Very quiet background")
-            elif st.session_state.bg_music_volume < 0.30:
-                st.caption("🔉 Subtle background")
-            elif st.session_state.bg_music_volume < 0.45:
-                st.caption("🔊 Balanced background")
-            else:
-                st.caption("🔊 Prominent background")
-        else:
-            st.caption("🔇 Background music disabled")
-            if "bg_music_volume" not in st.session_state:
-                st.session_state.bg_music_volume = 0.10
-    else:
-        st.warning("💡 No background music file")
-        with st.expander("ℹ️ How to add background music"):
-            st.markdown("""
-            **Steps to add background music:**
-            1. Download any `.mp3` music file
-            2. Rename it to exactly: `bg_music.mp3`
-            3. Place it in the same folder as `UI.py`
-            
-            **Music sources:**
-            - YouTube Audio Library (free)
-            - Pixabay Music (free)
-            - Incompetech (royalty-free)
-            - Bensound (free with attribution)
-            """)
-        
-        if "bg_music_volume" not in st.session_state:
-            st.session_state.bg_music_volume = 0.10
-        if "use_bg_music" not in st.session_state:
-            st.session_state.use_bg_music = False
-    
-    st.markdown("---")
-    
-    # Video generation options
-    st.session_state.enable_video = st.checkbox(
-        "Enable Video Generation", 
-        value=st.session_state.enable_video,
-        help="Generate video with audio overlay and subtitles",
-        disabled=not video_exists
-    )
-    
-    if st.session_state.enable_video:
-        # Subtitle toggle
-        if "add_subtitles" not in st.session_state:
-            st.session_state.add_subtitles = True
-        
-        st.session_state.add_subtitles = st.checkbox(
-            "Add Subtitles to Video",
-            value=st.session_state.add_subtitles,
-            help="Automatically generate and overlay subtitles using Whisper AI"
-        )
-        
-        if st.session_state.add_subtitles:
-            st.caption("🎯 Using Whisper AI for precise subtitle timing")
-        
-        st.info("🎬 Random segment extracted from base video")
-        
-        # Show what will be in the video
-        features = []
-        features.append("✓ Voice narration")
-        if st.session_state.add_subtitles:
-            features.append("✓ AI-synced subtitles")
-        if bg_music_exists and st.session_state.use_bg_music:
-            features.append(f"✓ Background music ({int(st.session_state.bg_music_volume * 100)}%)")
-        
-        st.caption("Video will include:\n" + "\n".join(features))
-    
-    st.markdown("---")
-    
-    # Audio Tester Section
-    with st.expander("🎙️ Audio Tester", expanded=False):
-        st.write("Test audio without generating content")
-        
-        test_text = st.text_area(
-            "Test text:",
-            value="Hello! This is a quick audio test.",
-            height=80,
-            key="sidebar_test_text"
-        )
-        
-        if st.button("🔊 Test Audio", key="sidebar_test_btn", use_container_width=True):
-            if test_text.strip():
-                with st.spinner("Generating test audio..."):
-                    st.session_state.audio_handler.generate_and_play(
-                        test_text, 
-                        st.session_state.selected_voice
-                    )
-            else:
-                st.warning("Enter some text to test")
-
+   
 # 1. Branding & Welcome Message
 st.markdown(
     "<div style='text-align: center;'><h1>🦍 Welcome to Gorilla Studios</h1></div>",
@@ -275,26 +105,47 @@ for message in st.session_state.messages:
 
 # 3. User Input Field
 if prompt := st.chat_input("ask anything"):
+    st.session_state.audio_handler = Audio()
+# --- CORE PROCESSING & HELPER FUNCTIONS ---
+
+def play_audio(response):
+    if st.session_state.enable_tts:
+        if "selected_voice" not in st.session_state:
+             st.session_state.selected_voice = "Charon" 
+             
+        st.session_state.audio_handler.generate_and_play(
+            response,
+            st.session_state.selected_voice,
+            show_spinner=True
+        )
+
+def process_prompt(prompt: str):
+    """Handles the user input, calls the agent, and updates state."""
+    
     # Append and display the user's message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     # Display the agent's response
-    with st.chat_message("assistant"):
-        with st.spinner("🦍 Gorilla is thinking..."):
+    with st.chat_message("assistant", avatar="🦍"):
+        with st.spinner("Gorilla is thinking..."):
             try:
                 # Call agent logic
                 crew_response = run_crew(prompt)
-                
+
+                # Get a random intro generator
+                intro_cycle = str(UI_tools.get_intro_generator(prompt))
+
                 # Convert CrewOutput to string
                 if hasattr(crew_response, 'raw'):
-                    response = str(crew_response.raw)
+                    response = intro_cycle + str(crew_response.raw)
                 elif hasattr(crew_response, 'result'):
-                    response = str(crew_response.result)
+                    response = intro_cycle + str(crew_response.result)
                 else:
-                    response = str(crew_response)
-                
+                    response = intro_cycle + str(crew_response)
+
+                # Display the response
                 st.markdown(response)
                 
                 # Generate audio bytes (always generate if TTS or Video is enabled)
@@ -380,6 +231,8 @@ if prompt := st.chat_input("ask anything"):
                                 import traceback
                                 with st.expander("Video Error Details"):
                                     st.code(traceback.format_exc())
+                # Generate TTS if enabled using the Audio class
+                play_audio(response)
                 
             except Exception as e:
                 error_message = f"Sorry, an error occurred: {e}"
@@ -399,3 +252,66 @@ if prompt := st.chat_input("ask anything"):
         message_data["video_path"] = video_path
     
     st.session_state.messages.append(message_data)
+    # Append the agent's response to the history
+    st.session_state.messages.append({"role": "assistant", "content": response})
+
+# --- UI RENDERING ---
+
+# Sidebar for TTS settings and audio tester, including Clear Chat Button
+with st.sidebar:
+    st.title("🦍 Gorilla Engine")
+    st.markdown("### Content Generation Suite")
+    st.markdown("---") 
+    
+    st.caption("Manage Conversation")
+    st.button(
+        "🗑️ Clear Chat", 
+        on_click=lambda: UI_tools.clear_chat_history(st), 
+        use_container_width=True
+    )
+    st.markdown("---")
+    
+    st.header("⚙️ Settings")
+    st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
+
+    #ADD VOICE SELECTION DROPDOWN
+    UI_tools.sidebar_audio_tester(st, Audio)
+    UI_tools.sidebar_video_settings(st)
+
+
+# --- MAIN CONTENT LOGIC ---
+
+# 1. Handle Quick Start Prompt Injection
+if "user_prompt" in st.session_state:
+    # A quick start button was clicked, process it and clear the state key
+    prompt = st.session_state.user_prompt
+    del st.session_state.user_prompt
+    process_prompt(prompt)
+    st.rerun() # Rerun to properly display the new messages
+
+# 2. Display Welcome/History
+if not st.session_state.messages:
+    # If no messages, show the guided welcome screen (Branding + Quick Start Prompts)
+    
+    # Display circular image with pure HTML for fixed sizing
+    UI_tools.circular_image(bs64,st)
+    
+    st.markdown("""
+        <div class="welcome-container">
+            <h1>🦍 Welcome to Gorilla Studios</h1>
+            <p>Your personal content generation assistant. Enter a topic to get started!</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Use the UI_tools function to render the prompt buttons
+    UI_tools.display_quick_start_prompts(st)
+
+else:
+    # If messages exist, display the chat history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"], avatar=("🦍" if message["role"] == "assistant" else None)):
+            st.markdown(message["content"])
+
+# 3. User Input Field
+if prompt := st.chat_input("ask anything"):
+    process_prompt(prompt)

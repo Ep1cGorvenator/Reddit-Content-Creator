@@ -1,7 +1,8 @@
 import streamlit as st
 import base64
-from gtts import gTTS
 import io
+from gtts import gTTS
+from UI_tools import get_intro_generator
 
 
 class Audio:
@@ -134,98 +135,3 @@ class Audio:
             List of voice names
         """
         return list(Audio.VOICE_MAPPING.keys())
-    
-    def test_audio(self):
-        """
-        Interactive test interface for audio functionality.
-        Displays controls to test TTS without needing to generate content.
-        """
-        st.subheader("🎙️ Audio Tester")
-        
-        # Test text input
-        test_text = st.text_area(
-            "Enter test text:",
-            value="Hello! This is a test of the text-to-speech system. How does it sound?",
-            height=100,
-            help="Enter any text to test the audio generation"
-        )
-        
-        # Voice selection
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            test_voice = st.selectbox(
-                "Select Voice:",
-                options=self.get_available_voices(),
-                help="Choose a voice/accent for testing"
-            )
-        
-        with col2:
-            # Display voice info
-            lang, tld = self.VOICE_MAPPING.get(test_voice, ("en", "us"))
-            accent_names = {
-                "com.au": "Australian",
-                "co.uk": "British",
-                "us": "American",
-                "ca": "Canadian",
-                "co.in": "Indian"
-            }
-            st.info(f"🌍 {accent_names.get(tld, 'English')} accent")
-        
-        # Generate button
-        if st.button("🔊 Generate & Play Audio", type="primary"):
-            if test_text.strip():
-                self.generate_and_play(test_text, test_voice)
-            else:
-                st.warning("⚠️ Please enter some text to test")
-        
-        # Quick test buttons
-        st.markdown("---")
-        st.write("**Quick Tests:**")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("Test Short"):
-                self.generate_and_play("This is a short test.", test_voice)
-        
-        with col2:
-            if st.button("Test Medium"):
-                self.generate_and_play(
-                    "This is a medium length test. It contains multiple sentences to demonstrate how the voice sounds with more content.",
-                    test_voice
-                )
-        
-        with col3:
-            if st.button("Test Long"):
-                long_text = """
-                This is a longer test of the text-to-speech system. 
-                It includes multiple sentences and different punctuation marks!
-                Does it handle questions properly? And what about exclamations!
-                Let's also test some numbers like 123 and 456.
-                Finally, we'll end with a simple statement.
-                """
-                self.generate_and_play(long_text, test_voice)
-
-
-# Example usage and test function
-def main():
-    """Main function to run the audio tester."""
-    st.set_page_config(
-        page_title="Audio Tester",
-        page_icon="🎙️",
-        layout="centered"
-    )
-    
-    st.title("🎙️ Text-to-Speech Audio Tester")
-    st.markdown("Test the audio functionality without generating content.")
-    st.markdown("---")
-    
-    # Initialize Audio handler
-    audio = Audio()
-    
-    # Run the tester
-    audio.test_audio()
-
-
-if __name__ == "__main__":
-    main()
