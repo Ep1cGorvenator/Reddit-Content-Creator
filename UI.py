@@ -1,5 +1,6 @@
 # ui.py
 import streamlit as st
+import base64 as bs64
 import time
 import UI_tools 
 from audio import Audio
@@ -29,20 +30,7 @@ st.set_page_config(
 )
 
 # --- Custom Styling ---
-st.markdown("""
-<style>
-    /* Light Mode Placeholder */
-    .stChatInput textarea::placeholder {
-        color: rgba(0, 0, 0, 0.35);
-        opacity: 1;
-    }
-    /* Dark Mode Placeholder */
-    [data-theme="dark"] .stChatInput textarea::placeholder {
-        color: rgba(255, 255, 0.4);
-    }
-    .center-text { text-align: center; }
-</style>
-""", unsafe_allow_html=True)
+UI_tools.setUp_CSS(st)
 
 # --- Session State Initialization ---
 if "messages" not in st.session_state:
@@ -128,6 +116,7 @@ with st.sidebar:
     st.header("⚙️ Settings")
     st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
 
+    #ADD VOICE SELECTION DROPDOWN
     UI_tools.sidebar_audio_tester(st, Audio)
 
 
@@ -144,10 +133,16 @@ if "user_prompt" in st.session_state:
 # 2. Display Welcome/History
 if not st.session_state.messages:
     # If no messages, show the guided welcome screen (Branding + Quick Start Prompts)
-    st.markdown("<div class='center-text'>", unsafe_allow_html=True)
-    st.header("🦍 Welcome to Gorilla Studios")
-    st.markdown("Your personal content generation assistant. Enter a topic to get started!")
-    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Display circular image with pure HTML for fixed sizing
+    UI_tools.circular_image(bs64,st)
+    
+    st.markdown("""
+        <div class="welcome-container">
+            <h1>🦍 Welcome to Gorilla Studios</h1>
+            <p>Your personal content generation assistant. Enter a topic to get started!</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     # Use the UI_tools function to render the prompt buttons
     UI_tools.display_quick_start_prompts(st)

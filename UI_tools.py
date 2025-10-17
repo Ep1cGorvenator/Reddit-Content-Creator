@@ -127,8 +127,8 @@ def display_quick_start_prompts(st):
         st.session_state.starter_prompts = [ALL_QUICK_START_PROMPTS[i] for i in indices]
 
     starter_prompts = st.session_state.starter_prompts
-
-    st.subheader("Quick Start Prompts")
+    
+    st.markdown("<h3 class='quick-start-title'>Quick Start Prompts</h3>", unsafe_allow_html=True)
     cols = st.columns(len(starter_prompts))
     
     for i, prompt in enumerate(starter_prompts):
@@ -178,6 +178,92 @@ def sidebar_audio_tester(st, Audio):
                 )
             else:
                 st.warning("Enter some text to test")
+
+#ADD CSS STYLES FOR CIRCULAR IMAGE
+def setUp_CSS(st):
+    st.markdown("""
+        <style>
+            /* --- Correct Placeholder Styling for Chat Input --- */
+            /* Light Mode */
+            .stChatInput input::placeholder,
+            .stChatInput div[data-baseweb="input"] input::placeholder {
+                color: rgba(120, 120, 120, 0.7) !important;
+            }
+
+            /* Dark Mode */
+            [data-theme="dark"] .stChatInput input::placeholder,
+            [data-theme="dark"] .stChatInput div[data-baseweb="input"] input::placeholder {
+                color: rgba(200, 200, 200, 0.5) !important;
+            }
+
+            /* Optional: Adjust input text color too */
+            .stChatInput input {
+                color: rgba(0, 0, 0, 0.85) !important;
+            }
+            [data-theme="dark"] .stChatInput input {
+                color: rgba(255, 255, 255, 0.9) !important;
+            }
+
+            /* Center Text Class */  
+            .center-text { text-align: center; }
+                
+            /* Circular Image Styling for Welcome Logo */
+            .logo-container img {
+                border-radius: 50%;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                width: 250px !important;
+                height: 250px !important;
+                object-fit: cover;
+                display: block;
+                margin: 0 auto;
+            }
+            
+            /* Center entire welcome section vertically and horizontally */
+            .welcome-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;       /* horizontal centering */
+                text-align: center;
+            }
+
+            /* Style text for better visual hierarchy */
+            .welcome-container h1 {
+                font-size: 2.5rem;
+                font-weight: 700;
+                margin-bottom: 0.5rem;
+                color: rgba(255, 255, 255, 1);
+            }
+
+            .welcome-container p {
+                font-size: 1.2rem;
+                color: rgba(255, 255, 255, 0.9);
+            }
+                
+            [data-theme="dark"] .welcome-container p {
+                color: rgba(220, 220, 220, 0.8);
+            }
+                
+            .quick-start-title {
+                text-align: center;
+                margin-top: 2rem;
+                margin-bottom: 1rem;
+                font-weight: 600;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+    
+#SET UP CIRCULAR IMAGE
+def circular_image(base64, st):
+    # Display circular image with pure HTML for fixed sizing
+    # Read and encode the image
+    with open("bigfoot_vlogs.jpg", "rb") as img_file:
+        img_data = base64.b64encode(img_file.read()).decode()
+    
+    st.markdown(f"""
+            <div class="logo-container">
+                <img src="data:image/jpeg;base64,{img_data}" class="circular-logo">
+            </div>
+        """, unsafe_allow_html=True)
 
 # --- RANDOM INTRO GENERATOR ---
 def get_intro_generator(prompt=""):
