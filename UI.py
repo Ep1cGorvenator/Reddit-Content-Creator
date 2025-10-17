@@ -102,10 +102,7 @@ for message in st.session_state.messages:
                     mime="video/mp4",
                     key=f"download_{message.get('timestamp', time.time())}"
                 )
-
-# 3. User Input Field
-if prompt := st.chat_input("ask anything"):
-    st.session_state.audio_handler = Audio()
+                
 # --- CORE PROCESSING & HELPER FUNCTIONS ---
 
 def play_audio(response):

@@ -1,4 +1,5 @@
 import random
+import os
 
 # --- FULL LIST OF QUICK START PROMPTS ---
 ALL_QUICK_START_PROMPTS = [
@@ -177,6 +178,131 @@ def sidebar_audio_tester(st, Audio):
                 )
             else:
                 st.warning("Enter some text to test")
+    
+def sidebar_video_settings(st):
+    st.markdown("---")
+    
+    # Video Settings
+    st.subheader("🎬 Video Settings")
+    
+    # Check if base video exists
+    video_exists = os.path.exists("base_video.mp4")
+    
+    if video_exists:
+        # Get video file size
+        video_size_mb = os.path.getsize("base_video.mp4") / (1024 * 1024)
+        st.success(f"✅ Base video: base_video.mp4 ({video_size_mb:.1f} MB)")
+    else:
+        st.error("❌ base_video.mp4 not found!")
+        st.info("📁 Place your video as 'base_video.mp4' in the same folder as UI.py")
+    
+    # Check for background music
+    bg_music_exists = os.path.exists("bg_music.mp3")
+    
+    if bg_music_exists:
+        # Get music file size
+        music_size_mb = os.path.getsize("bg_music.mp3") / (1024 * 1024)
+        st.success(f"✅ Background music: bg_music.mp3 ({music_size_mb:.1f} MB)")
+        
+        # Background music toggle
+        if "use_bg_music" not in st.session_state:
+            st.session_state.use_bg_music = True
+        
+        st.session_state.use_bg_music = st.checkbox(
+            "Use Background Music",
+            value=st.session_state.use_bg_music,
+            help="Add background music to generated videos"
+        )
+        
+        # Background music volume control (only show if music is enabled)
+        if st.session_state.use_bg_music:
+            if "bg_music_volume" not in st.session_state:
+                st.session_state.bg_music_volume = 0.10  # Default 10%
+            
+            # Volume slider with percentage display
+            volume_percent = int(st.session_state.bg_music_volume * 100)
+            
+            st.session_state.bg_music_volume = st.slider(
+                f"🎵 Music Volume: {volume_percent}%",
+                min_value=0.0,
+                max_value=0.60,
+                value=st.session_state.bg_music_volume,
+                step=0.02,
+                help="Adjust background music volume (0% = silent, 60% = loud)",
+                label_visibility="visible"
+            )
+            
+            # Volume indicator
+            if st.session_state.bg_music_volume == 0:
+                st.caption("🔇 Music muted")
+            elif st.session_state.bg_music_volume < 0.15:
+                st.caption("🔉 Very quiet background")
+            elif st.session_state.bg_music_volume < 0.30:
+                st.caption("🔉 Subtle background")
+            elif st.session_state.bg_music_volume < 0.45:
+                st.caption("🔊 Balanced background")
+            else:
+                st.caption("🔊 Prominent background")
+        else:
+            st.caption("🔇 Background music disabled")
+            if "bg_music_volume" not in st.session_state:
+                st.session_state.bg_music_volume = 0.10
+    else:
+        st.warning("💡 No background music file")
+        with st.expander("ℹ️ How to add background music"):
+            st.markdown("""
+            **Steps to add background music:**
+            1. Download any `.mp3` music file
+            2. Rename it to exactly: `bg_music.mp3`
+            3. Place it in the same folder as `UI.py`
+            
+            **Music sources:**
+            - YouTube Audio Library (free)
+            - Pixabay Music (free)
+            - Incompetech (royalty-free)
+            - Bensound (free with attribution)
+            """)
+        
+        if "bg_music_volume" not in st.session_state:
+            st.session_state.bg_music_volume = 0.10
+        if "use_bg_music" not in st.session_state:
+            st.session_state.use_bg_music = False
+    
+    st.markdown("---")
+    
+    # Video generation options
+    st.session_state.enable_video = st.checkbox(
+        "Enable Video Generation", 
+        value=st.session_state.enable_video,
+        help="Generate video with audio overlay and subtitles",
+        disabled=not video_exists
+    )
+    
+    if st.session_state.enable_video:
+        # Subtitle toggle
+        if "add_subtitles" not in st.session_state:
+            st.session_state.add_subtitles = True
+        
+        st.session_state.add_subtitles = st.checkbox(
+            "Add Subtitles to Video",
+            value=st.session_state.add_subtitles,
+            help="Automatically generate and overlay subtitles using Whisper AI"
+        )
+        
+        if st.session_state.add_subtitles:
+            st.caption("🎯 Using Whisper AI for precise subtitle timing")
+        
+        st.info("🎬 Random segment extracted from base video")
+        
+        # Show what will be in the video
+        features = []
+        features.append("✓ Voice narration")
+        if st.session_state.add_subtitles:
+            features.append("✓ AI-synced subtitles")
+        if bg_music_exists and st.session_state.use_bg_music:
+            features.append(f"✓ Background music ({int(st.session_state.bg_music_volume * 100)}%)")
+        
+        st.caption("Video will include:\n" + "\n".join(features))
 
 #ADD CSS STYLES WITH TROPICAL LEAVES ANIMATION
 def setUp_CSS(st):
