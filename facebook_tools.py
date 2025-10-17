@@ -12,7 +12,9 @@ FACEBOOK_APP_ID = os.getenv('FACEBOOK_APP_ID')
 FACEBOOK_APP_SECRET = os.getenv('FACEBOOK_APP_SECRET')
 FB_GRAPH_API_URL = "https://graph.facebook.com/v19.0"
 
-SCOPES = "public_profile,email"
+SCOPES = "public_profile"
+
+REDIRECT_URL= "https://managerially-unproofread-stefani.ngrok-free.dev/facebook-callback"
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -34,7 +36,7 @@ def login():
     auth_url = 'https://www.facebook.com/v19.0/dialog/oauth'
     params = {
         'client_id': FACEBOOK_APP_ID,
-        'redirect_uri': get_redirect_uri(),
+        'redirect_uri': REDIRECT_URL,
         'scope': SCOPES
     }
     # Facebook is the Identity Provider (IdP), we redirect to its authorization endpoint
@@ -59,7 +61,7 @@ def facebook_callback():
     token_url = f"{FB_GRAPH_API_URL}/oauth/access_token"
     token_params = {
         'client_id': FACEBOOK_APP_ID,
-        'redirect_uri': get_redirect_uri(),
+        'redirect_uri': REDIRECT_URL,
         'client_secret': FACEBOOK_APP_SECRET,
         'code': code
     }
