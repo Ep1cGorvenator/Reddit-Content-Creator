@@ -29,53 +29,139 @@ class VideoGenerator:
             print(f"⚠️ Warning: Base video not found at {self.base_video_path}")
             print(f"   Please place your video file at: {os.path.abspath(self.base_video_path)}")
     
-    def generate_subtitles_from_text(self, text: str, duration: float, words_per_second: float = 2):
+    def estimate_word_duration(self, word: str, base_duration: float = 0.3) -> float:
         """
-        Generate subtitle segments from text based on estimated timing.
-        Uses more conservative timing for better sync.
+        Estimate how long a word takes to pronounce based on its characteristics.
+        
+        Args:
+            word: The word to analyze
+            base_duration: Base duration per word in seconds
+        
+        Returns:
+            Estimated duration in seconds
+        """
+        # Count syllables (rough approximation)
+        vowels = 'aeiouAEIOU'
+        syllable_count = 0
+        prev_was_vowel = False
+        
+        for char in word:
+            is_vowel = char in vowels
+            if is_vowel and not prev_was_vowel:
+                syllable_count += 1
+            prev_was_vowel = is_vowel
+        
+        syllable_count = max(1, syllable_count)  # At least 1 syllable
+        
+        # Check for stretched/repeated characters (like "suiiiiii")
+        repeated_chars = 0
+        for i in range(len(word) - 1):
+            if word[i] == word[i + 1] and word[i].isalpha():
+                repeated_chars += 1
+        
+        # Base duration adjusted by syllables
+        duration = base_duration * (0.5 + (syllable_count * 0.3))
+        
+        # Add extra time for stretched words (each repeated char adds time)
+        if repeated_chars > 2:  # More than 2 repetitions = stretched word
+            stretch_factor = min(repeated_chars / 3, 2.5)  # Cap at 2.5x
+            duration *= (1 + stretch_factor)
+            print(f"   🎤 Stretched word detected: '{word}' ({repeated_chars} repetitions) -> {duration:.2f}s")
+        
+        # Add extra time for long words
+        if len(word) > 8:
+            duration *= 1.2
+        
+        return duration
+    
+    def calculate_dynamic_timings(self, text: str, total_duration: float) -> list:
+        """
+        Calculate dynamic timing for each word based on pronunciation characteristics.
+        
+        Args:
+            text: The full text
+            total_duration: Total audio duration in seconds
+        
+        Returns:
+            List of (word, start_time, end_time) tuples
+        """
+        words = text.split()
+        if not words:
+            return []
+        
+        # First pass: estimate duration for each word
+        word_durations = []
+        estimated_total = 0
+        
+        for word in words:
+            duration = self.estimate_word_duration(word)
+            word_durations.append(duration)
+            estimated_total += duration
+        
+        # Scale durations to match actual audio duration
+        if estimated_total > 0:
+            scale_factor = total_duration / estimated_total
+        else:
+            scale_factor = 1.0
+        
+        print(f"📊 Dynamic timing: {len(words)} words, scale factor: {scale_factor:.2f}")
+        
+        # Second pass: assign actual timestamps
+        word_timings = []
+        current_time = 0.0
+        
+        for word, duration in zip(words, word_durations):
+            scaled_duration = duration * scale_factor
+            end_time = min(current_time + scaled_duration, total_duration)
+            word_timings.append((word, current_time, end_time))
+            current_time = end_time
+        
+        return word_timings
+    
+    def generate_subtitles_from_text(self, text: str, duration: float, words_per_chunk: int = 5):
+        """
+        Generate subtitle segments from text using dynamic word timing.
+        Groups words into chunks for better readability while maintaining sync.
         
         Args:
             text: The text to convert to subtitles
             duration: Total duration of the audio in seconds
-            words_per_second: Average speaking rate (default: 2.3 words/sec - adjusted for better sync)
+            words_per_chunk: Number of words to display per subtitle (default: 5)
         
         Returns:
             List of tuples: [(start_time, end_time, text), ...]
         """
-        # Split text into sentences
-        sentences = re.split(r'[.!?]+', text)
-        sentences = [s.strip() for s in sentences if s.strip()]
+        # Get dynamic timing for each word
+        word_timings = self.calculate_dynamic_timings(text, duration)
         
-        if not sentences:
+        if not word_timings:
             return []
         
-        # Calculate total words to better distribute timing
-        total_words = sum(len(s.split()) for s in sentences)
-        
-        if total_words == 0:
-            return []
-        
+        # Group words into chunks for subtitle display
         subtitles = []
-        current_time = 0.0
+        i = 0
         
-        for sentence in sentences:
-            words_in_sentence = len(sentence.split())
+        while i < len(word_timings):
+            # Take up to words_per_chunk words
+            chunk_end = min(i + words_per_chunk, len(word_timings))
+            chunk = word_timings[i:chunk_end]
             
-            # Calculate duration proportionally to maintain sync
-            sentence_duration = (words_in_sentence / total_words) * duration
+            # Get timing from first and last word in chunk
+            start_time = chunk[0][1]  # Start of first word
+            end_time = chunk[-1][2]   # End of last word
             
-            # Add small buffer between sentences for natural pauses
-            end_time = min(current_time + sentence_duration, duration)
+            # Combine words into subtitle text
+            subtitle_text = ' '.join(word[0] for word in chunk)
             
-            if current_time < duration and sentence.strip():
-                subtitles.append((current_time, end_time, sentence))
-            
-            current_time = end_time
+            subtitles.append((start_time, end_time, subtitle_text))
+            i = chunk_end
+        
+        print(f"✅ Generated {len(subtitles)} subtitle chunks from {len(word_timings)} words")
         
         return subtitles
     
     def create_subtitle_clip(self, subtitle_text: str, start: float, end: float, 
-                           video_size: tuple, font_size: int = 70):
+                           video_size: tuple, font_size: int = 32):
         """
         Create a single subtitle text clip using Pillow (no ImageMagick needed).
         Centered on screen, larger font, with black outline, no background box.
@@ -85,7 +171,7 @@ class VideoGenerator:
             start: Start time in seconds
             end: End time in seconds
             video_size: (width, height) of the video
-            font_size: Size of the subtitle font (default: 70)
+            font_size: Size of the subtitle font (default: 32)
         
         Returns:
             ImageClip object
@@ -147,7 +233,7 @@ class VideoGenerator:
         y_start = (height - total_text_height) // 2
         
         # Draw each line with black outline (stroke effect)
-        stroke_width = 3  # Thickness of the outline
+        stroke_width = 2  # Thickness of the outline (reduced from 3)
         
         for i, line in enumerate(lines):
             try:
@@ -262,7 +348,7 @@ class VideoGenerator:
             # Get random segment from base video matching audio duration
             video_segment = self.get_random_video_segment(base_video, audio_duration)
             
-            print("🔊 Setting audio to video...")
+            print("📊 Setting audio to video...")
             # Set audio to video segment
             video_with_audio = video_segment.set_audio(audio_clip)
             
@@ -270,6 +356,7 @@ class VideoGenerator:
             if add_subtitles:
                 try:
                     print("📝 Generating subtitles...")
+                    # Generate dynamic subtitles (no need to calculate WPS separately)
                     subtitles = self.generate_subtitles_from_text(text, audio_duration)
                     
                     if subtitles:

@@ -73,7 +73,7 @@ with st.sidebar:
     # Voice selection (now mapped to accents)
     voice_options = Audio.get_available_voices()
     if "selected_voice" not in st.session_state:
-        st.session_state.selected_voice = "Puck"
+        st.session_state.selected_voice = "Charon"  # Default voice
     
     st.session_state.selected_voice = st.selectbox(
         "Voice (Accent)", 

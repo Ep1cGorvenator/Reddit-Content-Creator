@@ -27,13 +27,13 @@ class Audio:
         """
         self.max_length = max_length
     
-    def text_to_speech(self, text: str, voice_name: str = "Puck") -> bytes:
+    def text_to_speech(self, text: str, voice_name: str = "Charon") -> bytes:
         """
         Converts text to speech using gTTS (Google Text-to-Speech - free).
         
         Args:
             text: The text to convert to speech
-            voice_name: The voice/accent to use (default: "Puck")
+            voice_name: The voice/accent to use (default: "Charon")
         
         Returns:
             Audio bytes if successful, None otherwise
@@ -104,7 +104,7 @@ class Audio:
         return clean_text
     
     #MAIN METHOD TO GENERATE AND PLAY AUDIO
-    def generate_and_play(self, text: str, voice_name: str = "Puck", show_spinner: bool = True):
+    def generate_and_play(self, text: str, voice_name: str = "Charon", show_spinner: bool = True):
         """
         Convenience method to clean text, generate audio, and play it.
         
