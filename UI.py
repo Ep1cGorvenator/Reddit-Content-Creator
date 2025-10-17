@@ -2,7 +2,8 @@
 import streamlit as st
 import base64 as bs64
 import time
-import UI_tools 
+import UI_tools
+from UI_CSS import setUp_CSS 
 from audio import Audio
 
 # To make this runnable, we need to import your main crew function.
@@ -30,7 +31,12 @@ st.set_page_config(
 )
 
 # --- Custom Styling ---
-UI_tools.setUp_CSS(st)
+setUp_CSS(st)
+
+#--- ADD MONKEY SIDE BAR ---
+#add animated Iframe
+UI_tools.gorrilla_sideBar_animation(st)
+
 
 # --- Session State Initialization ---
 if "messages" not in st.session_state:
