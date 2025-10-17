@@ -41,6 +41,11 @@ st.markdown("""
     [data-theme="dark"] .stChatInput textarea::placeholder {
         color: rgba(255, 255, 255, 0.4);
     }
+    
+    /* Make slider labels more visible */
+    .stSlider > label {
+        font-weight: 600;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -68,7 +73,11 @@ with st.sidebar:
     
     # TTS Settings
     st.subheader("🎤 Audio Settings")
-    st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
+    st.session_state.enable_tts = st.checkbox(
+        "Enable Text-to-Speech", 
+        value=st.session_state.enable_tts,
+        help="Play generated audio automatically"
+    )
     
     # Voice selection (now mapped to accents)
     voice_options = Audio.get_available_voices()
@@ -94,15 +103,92 @@ with st.sidebar:
     video_exists = os.path.exists("base_video.mp4")
     
     if video_exists:
-        st.success("✅ Base video found: base_video.mp4")
+        # Get video file size
+        video_size_mb = os.path.getsize("base_video.mp4") / (1024 * 1024)
+        st.success(f"✅ Base video: base_video.mp4 ({video_size_mb:.1f} MB)")
     else:
         st.error("❌ base_video.mp4 not found!")
-        st.info("Place your 13-minute video as 'base_video.mp4' in the same folder as this script.")
+        st.info("📁 Place your video as 'base_video.mp4' in the same folder as UI.py")
     
+    # Check for background music
+    bg_music_exists = os.path.exists("bg_music.mp3")
+    
+    if bg_music_exists:
+        # Get music file size
+        music_size_mb = os.path.getsize("bg_music.mp3") / (1024 * 1024)
+        st.success(f"✅ Background music: bg_music.mp3 ({music_size_mb:.1f} MB)")
+        
+        # Background music toggle
+        if "use_bg_music" not in st.session_state:
+            st.session_state.use_bg_music = True
+        
+        st.session_state.use_bg_music = st.checkbox(
+            "Use Background Music",
+            value=st.session_state.use_bg_music,
+            help="Add background music to generated videos"
+        )
+        
+        # Background music volume control (only show if music is enabled)
+        if st.session_state.use_bg_music:
+            if "bg_music_volume" not in st.session_state:
+                st.session_state.bg_music_volume = 0.10  # Default 10%
+            
+            # Volume slider with percentage display
+            volume_percent = int(st.session_state.bg_music_volume * 100)
+            
+            st.session_state.bg_music_volume = st.slider(
+                f"🎵 Music Volume: {volume_percent}%",
+                min_value=0.0,
+                max_value=0.60,
+                value=st.session_state.bg_music_volume,
+                step=0.02,
+                help="Adjust background music volume (0% = silent, 60% = loud)",
+                label_visibility="visible"
+            )
+            
+            # Volume indicator
+            if st.session_state.bg_music_volume == 0:
+                st.caption("🔇 Music muted")
+            elif st.session_state.bg_music_volume < 0.15:
+                st.caption("🔉 Very quiet background")
+            elif st.session_state.bg_music_volume < 0.30:
+                st.caption("🔉 Subtle background")
+            elif st.session_state.bg_music_volume < 0.45:
+                st.caption("🔊 Balanced background")
+            else:
+                st.caption("🔊 Prominent background")
+        else:
+            st.caption("🔇 Background music disabled")
+            if "bg_music_volume" not in st.session_state:
+                st.session_state.bg_music_volume = 0.10
+    else:
+        st.warning("💡 No background music file")
+        with st.expander("ℹ️ How to add background music"):
+            st.markdown("""
+            **Steps to add background music:**
+            1. Download any `.mp3` music file
+            2. Rename it to exactly: `bg_music.mp3`
+            3. Place it in the same folder as `UI.py`
+            
+            **Music sources:**
+            - YouTube Audio Library (free)
+            - Pixabay Music (free)
+            - Incompetech (royalty-free)
+            - Bensound (free with attribution)
+            """)
+        
+        if "bg_music_volume" not in st.session_state:
+            st.session_state.bg_music_volume = 0.10
+        if "use_bg_music" not in st.session_state:
+            st.session_state.use_bg_music = False
+    
+    st.markdown("---")
+    
+    # Video generation options
     st.session_state.enable_video = st.checkbox(
         "Enable Video Generation", 
         value=st.session_state.enable_video,
-        help="Generate video with audio overlay and subtitles from base_video.mp4",
+        help="Generate video with audio overlay and subtitles",
         disabled=not video_exists
     )
     
@@ -114,11 +200,23 @@ with st.sidebar:
         st.session_state.add_subtitles = st.checkbox(
             "Add Subtitles to Video",
             value=st.session_state.add_subtitles,
-            help="Automatically generate and overlay subtitles"
+            help="Automatically generate and overlay subtitles using Whisper AI"
         )
         
-        st.info("🎬 Random segment will be extracted (no loops/cutoffs)")
-        st.warning("⚠️ Video will be generated automatically for each response")
+        if st.session_state.add_subtitles:
+            st.caption("🎯 Using Whisper AI for precise subtitle timing")
+        
+        st.info("🎬 Random segment extracted from base video")
+        
+        # Show what will be in the video
+        features = []
+        features.append("✓ Voice narration")
+        if st.session_state.add_subtitles:
+            features.append("✓ AI-synced subtitles")
+        if bg_music_exists and st.session_state.use_bg_music:
+            features.append(f"✓ Background music ({int(st.session_state.bg_music_volume * 100)}%)")
+        
+        st.caption("Video will include:\n" + "\n".join(features))
     
     st.markdown("---")
     
@@ -133,12 +231,13 @@ with st.sidebar:
             key="sidebar_test_text"
         )
         
-        if st.button("🔊 Test Audio", key="sidebar_test_btn"):
+        if st.button("🔊 Test Audio", key="sidebar_test_btn", use_container_width=True):
             if test_text.strip():
-                st.session_state.audio_handler.generate_and_play(
-                    test_text, 
-                    st.session_state.selected_voice
-                )
+                with st.spinner("Generating test audio..."):
+                    st.session_state.audio_handler.generate_and_play(
+                        test_text, 
+                        st.session_state.selected_voice
+                    )
             else:
                 st.warning("Enter some text to test")
 
@@ -217,9 +316,25 @@ if prompt := st.chat_input("ask anything"):
                 if st.session_state.enable_video and audio_bytes:
                     if not os.path.exists("base_video.mp4"):
                         st.error("❌ Cannot generate video: base_video.mp4 not found!")
-                        st.info("Place your 13-minute video as 'base_video.mp4' in the same folder as this script.")
+                        st.info("Place your video as 'base_video.mp4' in the same folder as UI.py")
+                    elif st.session_state.video_handler is None:
+                        st.error("❌ Video handler not initialized!")
                     else:
-                        with st.spinner("🎬 Generating video (random segment with audio & subtitles)..."):
+                        # Determine background music volume (0 if disabled)
+                        bg_vol = st.session_state.bg_music_volume if (
+                            st.session_state.use_bg_music and 
+                            os.path.exists("bg_music.mp3")
+                        ) else 0.0
+                        
+                        # Build status message
+                        status_msg = "🎬 Generating video"
+                        if st.session_state.add_subtitles:
+                            status_msg += " with AI subtitles"
+                        if bg_vol > 0:
+                            status_msg += f" and background music ({int(bg_vol * 100)}%)"
+                        status_msg += "..."
+                        
+                        with st.spinner(status_msg):
                             try:
                                 output_path = os.path.join(
                                     tempfile.gettempdir(),
@@ -232,10 +347,18 @@ if prompt := st.chat_input("ask anything"):
                                     audio_bytes=audio_bytes,
                                     text=clean_text,
                                     output_path=output_path,
-                                    add_subtitles=st.session_state.add_subtitles
+                                    add_subtitles=st.session_state.add_subtitles,
+                                    bg_music_volume=bg_vol
                                 )
                                 
-                                st.success("✅ Video generated successfully!")
+                                # Success message with details
+                                success_parts = ["✅ Video generated successfully!"]
+                                if st.session_state.add_subtitles:
+                                    success_parts.append("🎯 Subtitles synced with Whisper AI")
+                                if bg_vol > 0:
+                                    success_parts.append(f"🎵 Background music at {int(bg_vol * 100)}%")
+                                
+                                st.success(" | ".join(success_parts))
                                 
                                 # Display the video
                                 st.video(video_path)
