@@ -3,6 +3,7 @@ import streamlit as st
 import time
 import UI_tools 
 from audio import Audio
+import facebook_tools
 
 # To make this runnable, we need to import your main crew function.
 try:
@@ -38,7 +39,7 @@ st.markdown("""
     }
     /* Dark Mode Placeholder */
     [data-theme="dark"] .stChatInput textarea::placeholder {
-        color: rgba(255, 255, 0.4);
+        color: rgba(255, 255, 255, 0.4);
     }
     .center-text { text-align: center; }
 </style>
@@ -105,7 +106,7 @@ def process_prompt(prompt: str):
                 import traceback
                 st.code(traceback.format_exc())
                 response = error_message
-
+    #Publish to 
     # Append the agent's response to the history
     st.session_state.messages.append({"role": "assistant", "content": response})
 
@@ -129,6 +130,20 @@ with st.sidebar:
     st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
 
     UI_tools.sidebar_audio_tester(st, Audio)
+
+    # --- Publish to Facebook (Visible After Response) ---
+    if st.session_state.messages and any(msg["role"] == "assistant" for msg in st.session_state.messages):
+        st.markdown("---")
+        st.subheader("📤 Publish")
+        if st.button("📤 Publish to Facebook", use_container_width=True):
+    # 🔹 This block runs when the button is pressed
+            st.write("Publishing...")  # (you’ll see this in the app immediately)
+            if __name__ == '__main__':
+                # You MUST set FACEBOOK_APP_ID and FACEBOOK_APP_SECRET in your environment!
+                # For local development, Flask typically runs on port 5000.
+                # The Redirect URI in your Meta App settings should be something like:
+                # http://127.0.0.1:5000/facebook-callback or http://localhost:5000/facebook-callback
+                facebook_tools.app.run(debug=True)
 
 
 # --- MAIN CONTENT LOGIC ---
