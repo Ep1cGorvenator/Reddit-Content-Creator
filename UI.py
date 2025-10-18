@@ -36,6 +36,8 @@ st.set_page_config(
 # --- Custom Styling ---
 setUp_CSS(st)
 
+if "audio_handler" not in st.session_state:
+    st.session_state.audio_handler = Audio(prefer_gpu=True)
 
 # --- Session State Initialization ---
 if "messages" not in st.session_state:
