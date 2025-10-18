@@ -29,7 +29,7 @@ except ImportError:
 st.set_page_config(
     page_title="Gorilla Studios AI",
     page_icon="🦍",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="auto",
 )
 
