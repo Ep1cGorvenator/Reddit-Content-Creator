@@ -238,12 +238,15 @@ def circular_image(base64, st):
 def gorrilla_sideBar_animation(st):
     import streamlit.components.v1 as com
     import json
+
     # Load your local Lottie JSON file
     with open(r"C:\UnityProjects\301Project\Reddit-Content-Creator\GorillaHangingAnimation.json", "r") as f:
         lottie_json = json.load(f)
+
     # Convert JSON to string for embedding in JS
     lottie_str = json.dumps(lottie_json)
     html_code = f"""
+    
     <head>
     <!-- Use Lottie Web, not dotlottie-wc -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
