@@ -625,6 +625,7 @@ class GorillaStudioApp:
         self._setup_page_config()
         self._apply_custom_styling()
         self._initialize_components()
+        self._pregenerate_default_audio()
     
     def _setup_page_config(self):
         """Configure Streamlit page settings."""
@@ -674,6 +675,40 @@ class GorillaStudioApp:
             self.content_service,
             self.view
         )
+    
+    def _pregenerate_default_audio(self):
+        """Pre-generate default audio on app startup silently."""
+        # Only generate once per session
+        if "default_audio_generated" not in self.st.session_state:
+            default_text = "Hello! This is a quick audio test."
+            default_voice = self.config_repo.get_tts_config().selected_voice
+            
+            try:
+                # Temporarily switch to silent feedback adapter for startup generation
+                from audio import SilentFeedbackAdapter
+                audio_handler = self.st.session_state.audio_handler
+                
+                # Save current feedback adapter
+                original_adapter = audio_handler.feedback_adapter
+                
+                # Use silent adapter for pre-generation
+                audio_handler.feedback_adapter = SilentFeedbackAdapter()
+                
+                # Generate audio silently
+                clean_text = audio_handler.clean_text_for_speech(default_text)
+                audio_bytes = audio_handler.text_to_speech(clean_text, default_voice)
+                
+                # Restore original feedback adapter
+                audio_handler.feedback_adapter = original_adapter
+                
+                # Store in session state for later use
+                if audio_bytes:
+                    self.st.session_state.default_test_audio = audio_bytes
+                    self.st.session_state.default_audio_generated = True
+            except Exception as e:
+                # Silently fail - don't block app startup
+                self.st.session_state.default_audio_generated = False
+                print(f"Failed to pre-generate default audio: {e}")
     
     def render_sidebar(self):
         """Render sidebar with settings.""" 

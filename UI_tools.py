@@ -22,6 +22,7 @@ def get_intro_generator(prompt):
     ]
     
     return random.choice(intros)
+
 # --- CHAT UTILITIES ---
 def clear_chat_history(st):
     """
@@ -63,11 +64,19 @@ def sidebar_audio_tester(st, Audio):
     
     voice_index = voice_options.index(st.session_state.selected_voice) if st.session_state.selected_voice in voice_options else 0
     
+    # Voice selector with callback to regenerate default audio when changed
+    def on_voice_change():
+        """Regenerate default audio when voice changes"""
+        if "default_audio_generated" in st.session_state:
+            # Mark as needing regeneration
+            st.session_state.default_audio_generated = False
+    
     st.session_state.selected_voice = st.selectbox(
         "Voice (Accent)", 
         voice_options, 
         index=voice_index,
-        help="Different accents: Australian, British, US, Canadian, Indian"
+        help="Different accents: Australian, British, US, Canadian, Indian",
+        on_change=on_voice_change
     )
     
     st.info("🎙️ When enabled, responses will be read aloud automatically.")
@@ -79,14 +88,63 @@ def sidebar_audio_tester(st, Audio):
     with st.expander("🎙️ Audio Tester", expanded=False):
         st.write("Test audio without generating content")
         
+        # Check if default audio is already generated
+        has_default_audio = (
+            "default_test_audio" in st.session_state 
+            and st.session_state.default_test_audio
+            and st.session_state.get("default_audio_generated", False)
+        )
+        
+        if has_default_audio:
+            # Show pre-generated default audio
+            st.success("✅ Default audio ready!")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("▶️ Play Default", key="play_default_audio", use_container_width=True):
+                    st.audio(st.session_state.default_test_audio, format="audio/mp3")
+            
+            with col2:
+                if st.button("🔄 Regenerate", key="regen_default_audio", use_container_width=True):
+                    with st.spinner("Generating..."):
+                        default_text = "Hello! This is a quick audio test."
+                        clean_text = st.session_state.audio_handler.clean_text_for_speech(default_text)
+                        audio_bytes = st.session_state.audio_handler.text_to_speech(
+                            clean_text, 
+                            st.session_state.selected_voice
+                        )
+                        if audio_bytes:
+                            st.session_state.default_test_audio = audio_bytes
+                            st.rerun()
+        else:
+            # Fallback: Generate default audio if not available
+            st.warning("⚠️ Default audio not generated yet")
+            if st.button("🎤 Generate Default Audio", key="gen_default_audio", use_container_width=True):
+                with st.spinner("Generating default audio..."):
+                    default_text = "Hello! This is a quick audio test."
+                    clean_text = st.session_state.audio_handler.clean_text_for_speech(default_text)
+                    audio_bytes = st.session_state.audio_handler.text_to_speech(
+                        clean_text, 
+                        st.session_state.selected_voice
+                    )
+                    if audio_bytes:
+                        st.session_state.default_test_audio = audio_bytes
+                        st.session_state.default_audio_generated = True
+                        st.rerun()
+        
+        st.markdown("---")
+        st.caption("Custom Text Test")
+        
+        # Custom text testing
         test_text = st.text_area(
-            "Test text:",
-            value="Hello! This is a quick audio test.",
+            "Test custom text:",
+            value="Hello! This is a custom audio test.",
             height=80,
             key="sidebar_test_text"
         )
         
-        if st.button("🔊 Test Audio", key="sidebar_test_btn"):
+        if st.button("🔊 Test Custom Text", key="sidebar_test_btn", use_container_width=True):
             if test_text.strip():
                 st.session_state.audio_handler.generate_and_play(
                     test_text, 
