@@ -87,15 +87,22 @@ def handle_oauth_redirect():
     auth_status = query_params.get("auth_status")
     session_id = query_params.get("session_id")
     
+    print(query_params)
+    print(auth_status)
+    print(session_id)
+    print()
     # Check if we have an authentication signal
     if auth_status:
         # Clear the parameters from the URL bar
+        
         st.query_params.clear() 
         
         if auth_status == "success" and session_id:
             # Token found and stored in Flask, retrieve info for UI display
+            
             session_info = facebook_tools.get_session_info(session_id)
             if session_info:
+                
                 st.session_state.facebook_token_ready = True
                 st.session_state.facebook_page_id = session_info['page_id']
                 # The success message is now dynamically displayed in the sidebar
@@ -146,6 +153,7 @@ with st.sidebar:
                         
                         st.session_state.facebook_login_url = login_url 
                         st.info("A link to the Facebook login page is ready below.")
+                        
                         st.rerun() 
                         
                     except Exception as e:
@@ -157,8 +165,8 @@ with st.sidebar:
             st.success(f"✅ Facebook Connected! Publishing to Page ID: **{page_id_display}**")
             
             assistant_messages = [msg["content"] for msg in st.session_state.messages if msg["role"] == "assistant"]
-            post_content = assistant_messages[-1] if assistant_messages else "No content generated yet."
-
+            #post_content = assistant_messages[-1] if assistant_messages else "No content generated yet."
+            post_content = "Hello there" 
             if st.button("🚀 Publish Generated Post", use_container_width=True):
                 with st.spinner(f"Publishing to Page {page_id_display}...") as s:
                     try:
@@ -177,6 +185,7 @@ if "user_prompt" in st.session_state:
     prompt = st.session_state.user_prompt
     del st.session_state.user_prompt
     process_prompt(prompt)
+    
     st.rerun() 
 
 # 2. Handle the Redirect Link Display
@@ -189,6 +198,7 @@ if "facebook_login_url" in st.session_state:
         help="Opens Facebook login in a new tab."
     )
     del st.session_state.facebook_login_url
+#    handle_oauth_redirect()
 
 # 3. Display Welcome/History
 if not st.session_state.messages:
