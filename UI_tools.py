@@ -22,6 +22,7 @@ def get_intro_generator(prompt):
     ]
     
     return random.choice(intros)
+
 # --- CHAT UTILITIES ---
 def clear_chat_history(st):
     """
@@ -219,6 +220,215 @@ def sidebar_video_settings(st):
             features.append(f"✓ Background music ({int(st.session_state.bg_music_volume * 100)}%)")
         
         st.caption("Video will include:\n" + "\n".join(features))
+
+
+# --- FACEBOOK INTEGRATION ---
+def sidebar_facebook_settings(st):
+    """Facebook integration settings in sidebar"""
+    st.markdown("---")
+    st.subheader("📘 Facebook Integration")
+    
+    # Initialize session state for Facebook
+    if "fb_configured" not in st.session_state:
+        st.session_state.fb_configured = False
+    if "fb_pages" not in st.session_state:
+        st.session_state.fb_pages = []
+    
+    with st.expander("⚙️ Facebook Setup", expanded=not st.session_state.fb_configured):
+        st.markdown("""
+        **Quick Setup:**
+        1. Visit [Facebook Developers](https://developers.facebook.com/)
+        2. Create an app with Facebook Login
+        3. Generate a Page Access Token
+        4. Paste it below
+        """)
+        
+        access_token = st.text_input(
+            "Facebook Access Token",
+            type="password",
+            help="Your Facebook Page Access Token",
+            key="fb_access_token_input"
+        )
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔗 Connect", use_container_width=True):
+                if access_token:
+                    from facebook_integration import FacebookPoster
+                    fb = FacebookPoster(access_token)
+                    
+                    # Validate token
+                    with st.spinner("Validating token..."):
+                        validation = fb.validate_token()
+                        
+                        if "error" in validation:
+                            st.error(f"❌ Invalid token: {validation.get('error', {}).get('message', 'Unknown error')}")
+                        else:
+                            # Get pages
+                            pages_data = fb.get_pages()
+                            
+                            if "data" in pages_data:
+                                st.session_state.fb_configured = True
+                                st.session_state.fb_access_token = access_token
+                                st.session_state.fb_pages = pages_data["data"]
+                                st.success(f"✅ Connected! Found {len(pages_data['data'])} page(s)")
+                                st.rerun()
+                            else:
+                                st.error("❌ No pages found")
+                else:
+                    st.warning("Please enter an access token")
+        
+        with col2:
+            if st.button("🔓 Disconnect", use_container_width=True):
+                st.session_state.fb_configured = False
+                st.session_state.fb_pages = []
+                if "fb_access_token" in st.session_state:
+                    del st.session_state.fb_access_token
+                st.success("Disconnected")
+                st.rerun()
+    
+    # Show connected status
+    if st.session_state.fb_configured:
+        st.success(f"✅ Connected • {len(st.session_state.fb_pages)} page(s)")
+        
+        # Page selector
+        if st.session_state.fb_pages:
+            page_names = [page["name"] for page in st.session_state.fb_pages]
+            
+            if "selected_fb_page_index" not in st.session_state:
+                st.session_state.selected_fb_page_index = 0
+            
+            st.session_state.selected_fb_page_index = st.selectbox(
+                "Select Page",
+                range(len(page_names)),
+                format_func=lambda i: page_names[i],
+                index=st.session_state.selected_fb_page_index,
+                key="fb_page_selector"
+            )
+    else:
+        st.info("ℹ️ Connect Facebook to enable posting")
+
+
+def display_facebook_post_button(st, message_index):
+    """
+    Display Facebook post button for a specific message.
+    
+    Args:
+        st: Streamlit object
+        message_index: Index of the message in session state
+    """
+    if not st.session_state.get("fb_configured", False):
+        return
+    
+    message = st.session_state.messages[message_index]
+    
+    # Only show for assistant messages
+    if message["role"] != "assistant":
+        return
+    
+    # Create columns for post buttons
+    col1, col2 = st.columns([1, 4])
+    
+    with col1:
+        button_key = f"fb_post_{message_index}_{message.get('timestamp', 0)}"
+        
+        if st.button("📘 Post to Facebook", key=button_key, use_container_width=True):
+            post_to_facebook(st, message_index)
+
+
+def post_to_facebook(st, message_index):
+    """
+    Post content to Facebook.
+    
+    Args:
+        st: Streamlit object
+        message_index: Index of the message to post
+    """
+    from facebook_integration import FacebookPoster
+    
+    message = st.session_state.messages[message_index]
+    content = message["content"]
+    video_path = message.get("video_path")
+    
+    # Get selected page
+    if not st.session_state.fb_pages:
+        st.error("No Facebook pages available")
+        return
+    
+    selected_page = st.session_state.fb_pages[st.session_state.selected_fb_page_index]
+    page_id = selected_page["id"]
+    page_token = selected_page["access_token"]
+    page_name = selected_page["name"]
+    
+    # Initialize Facebook poster
+    fb = FacebookPoster(st.session_state.fb_access_token)
+    
+    # Clean content for Facebook (remove markdown formatting)
+    clean_content = clean_text_for_facebook(content)
+    
+    with st.spinner(f"📤 Posting to {page_name}..."):
+        if video_path and os.path.exists(video_path):
+            # Post with video
+            result = fb.post_to_page(
+                page_id=page_id,
+                message=clean_content,
+                page_access_token=page_token,
+                video_path=video_path
+            )
+        else:
+            # Post text only
+            result = fb.post_to_page(
+                page_id=page_id,
+                message=clean_content,
+                page_access_token=page_token
+            )
+        
+        if result.get("success"):
+            st.success(f"✅ Posted to {page_name}!")
+            
+            # Show post ID
+            post_id = result.get("post_id") or result.get("video_id")
+            if post_id:
+                st.caption(f"Post ID: {post_id}")
+        else:
+            error_msg = result.get("error", {})
+            if isinstance(error_msg, dict):
+                error_text = error_msg.get("message", "Unknown error")
+            else:
+                error_text = str(error_msg)
+            
+            st.error(f"❌ Failed to post: {error_text}")
+
+
+def clean_text_for_facebook(text: str) -> str:
+    """
+    Clean markdown formatting for Facebook posts.
+    
+    Args:
+        text: Text with markdown formatting
+        
+    Returns:
+        Cleaned text suitable for Facebook
+    """
+    import re
+    
+    # Remove markdown bold
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    
+    # Remove markdown italic
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    
+    # Remove markdown headers
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove markdown links but keep URL
+    text = re.sub(r'\[(.*?)\]\((.*?)\)', r'\1 (\2)', text)
+    
+    # Clean up multiple newlines
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
 
   
 # --- SET UP CIRCULAR IMAGE ---

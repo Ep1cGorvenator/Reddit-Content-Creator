@@ -1,4 +1,3 @@
-# ui.py
 import streamlit as st
 import base64 as bs64
 import time
@@ -71,7 +70,7 @@ st.markdown(
 st.markdown("---")
 
 # 2. Display Chat History
-for message in st.session_state.messages:
+for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         
@@ -90,6 +89,10 @@ for message in st.session_state.messages:
                     mime="video/mp4",
                     key=f"download_{message.get('timestamp', time.time())}"
                 )
+        
+        # Show Facebook post button for assistant messages
+        if message["role"] == "assistant":
+            UI_tools.display_facebook_post_button(st, idx)
                 
 # --- CORE PROCESSING & HELPER FUNCTIONS ---
 
@@ -219,6 +222,7 @@ def process_prompt(prompt: str):
                             import traceback
                             with st.expander("Video Error Details"):
                                 st.code(traceback.format_exc())
+            
             # Generate TTS if enabled using the Audio class
             play_audio(response)
             
@@ -240,12 +244,10 @@ def process_prompt(prompt: str):
         message_data["video_path"] = video_path
     
     st.session_state.messages.append(message_data)
-    # Append the agent's response to the history
-    st.session_state.messages.append({"role": "assistant", "content": response})
 
 # --- UI RENDERING ---
 
-# Sidebar for TTS settings and audio tester, including Clear Chat Button
+# Sidebar for TTS settings, video settings, Facebook integration, and Clear Chat Button
 with st.sidebar:
     st.title("🦍 Gorilla Engine")
     st.markdown("### Content Generation Suite")
@@ -262,9 +264,14 @@ with st.sidebar:
     st.header("⚙️ Settings")
     st.session_state.enable_tts = st.checkbox("Enable Text-to-Speech", value=st.session_state.enable_tts)
 
-    #ADD VOICE SELECTION DROPDOWN
+    # ADD VOICE SELECTION DROPDOWN
     UI_tools.sidebar_audio_tester(st, Audio)
+    
+    # ADD VIDEO SETTINGS
     UI_tools.sidebar_video_settings(st)
+    
+    # ADD FACEBOOK INTEGRATION
+    UI_tools.sidebar_facebook_settings(st)
 
 
 # --- MAIN CONTENT LOGIC ---
@@ -296,9 +303,29 @@ if not st.session_state.messages:
 
 else:
     # If messages exist, display the chat history
-    for message in st.session_state.messages:
+    for idx, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"], avatar=("🦍" if message["role"] == "assistant" else None)):
             st.markdown(message["content"])
+            
+            # Show video if exists
+            if "video_path" in message and message["video_path"]:
+                if os.path.exists(message["video_path"]):
+                    st.video(message["video_path"])
+                    
+                    # Download button
+                    with open(message["video_path"], 'rb') as f:
+                        video_bytes = f.read()
+                    st.download_button(
+                        label="⬇️ Download Video",
+                        data=video_bytes,
+                        file_name=f"gorilla_video_{int(time.time())}.mp4",
+                        mime="video/mp4",
+                        key=f"download_history_{idx}_{message.get('timestamp', time.time())}"
+                    )
+            
+            # Show Facebook post button for assistant messages
+            if message["role"] == "assistant":
+                UI_tools.display_facebook_post_button(st, idx)
 
 # 3. User Input Field
 if prompt := st.chat_input("ask anything"):
