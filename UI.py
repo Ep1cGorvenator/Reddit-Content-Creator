@@ -36,10 +36,6 @@ st.set_page_config(
 # --- Custom Styling ---
 setUp_CSS(st)
 
-#--- ADD MONKEY SIDE BAR ---
-#add animated Iframe
-UI_tools.gorrilla_sideBar_animation(st)
-
 
 # --- Session State Initialization ---
 if "messages" not in st.session_state:
@@ -58,17 +54,6 @@ if "video_handler" not in st.session_state:
     st.session_state.video_handler = VideoGenerator(base_video_path="base_video.mp4")
 
 # --- UI Rendering ---
-   
-# 1. Branding & Welcome Message
-st.markdown(
-    "<div style='text-align: center;'><h1>🦍 Welcome to Gorilla Studios</h1></div>",
-    unsafe_allow_html=True,
-)
-st.markdown(
-    "<div style='text-align: center;'><p>Your personal content generation assistant. Enter a topic to get started!</p></div>",
-    unsafe_allow_html=True
-)
-st.markdown("---")
 
 # 2. Display Chat History
 for message in st.session_state.messages:
@@ -130,6 +115,9 @@ def process_prompt(prompt: str):
 
             # Get a random intro generator
             intro_cycle = str(UI_tools.get_intro_generator(prompt))
+            
+            # Convert CrewOutput to string and combine with intro
+            response = intro_cycle + str(crew_response)
 
             # Display the response
             st.markdown(response)
@@ -275,13 +263,17 @@ if "user_prompt" in st.session_state:
     process_prompt(prompt)
     st.rerun() # Rerun to properly display the new messages
 
+#--- ADD MONKEY SIDE BAR ---
+#add animated Iframe
+UI_tools.gorrilla_sideBar_animation(st)
+
 # 2. Display Welcome/History
 if not st.session_state.messages:
     # If no messages, show the guided welcome screen (Branding + Quick Start Prompts)
     
     # Display circular image with pure HTML for fixed sizing
     UI_tools.circular_image(bs64,st)
-    
+
     st.markdown("""
         <div class="welcome-container">
             <h1>🦍 Welcome to Gorilla Studios</h1>
