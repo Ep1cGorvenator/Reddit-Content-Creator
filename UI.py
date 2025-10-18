@@ -131,6 +131,8 @@ def process_prompt(prompt: str):
             # Get a random intro generator
             intro_cycle = str(UI_tools.get_intro_generator(prompt))
 
+            response = intro_cycle + str(crew_response)
+
             # Display the response
             st.markdown(response)
             
