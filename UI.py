@@ -153,7 +153,7 @@ class ConfigRepository:
         if "use_bg_music" not in self._state:
             self._state.use_bg_music = False
         if "bg_music_volume" not in self._state:
-            self._state.bg_music_volume = 0.3
+            self._state.bg_music_volume = 0.1
     
     def get_tts_config(self) -> TTSConfig:
         """Get current TTS configuration.""" 
