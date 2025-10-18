@@ -240,7 +240,7 @@ def gorrilla_sideBar_animation(st):
     import json
 
     # Load your local Lottie JSON file
-    with open(r"GorillaHangingAnimation.json", "r") as f:
+    with open(r"C:\UnityProjects\301Project\Reddit-Content-Creator\GorillaHangingAnimation.json", "r") as f:
         lottie_json = json.load(f)
 
     # Convert JSON to string for embedding in JS
@@ -316,7 +316,7 @@ def show_loading_animation():
     import streamlit.components.v1 as com
     import json
     
-    with open(r"movingHand.json", "r") as f:
+    with open(r"C:\UnityProjects\301Project\Reddit-Content-Creator\movingHand.json", "r") as f:
         lottie_json = json.load(f)
     
     lottie_str = json.dumps(lottie_json)

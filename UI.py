@@ -14,6 +14,7 @@ from typing import Optional, List, Callable, Protocol
 from abc import ABC, abstractmethod
 
 import UI_tools
+from UI_CSS import setUp_CSS
 from audio import Audio
 from video_gen import VideoGenerator
 
@@ -64,8 +65,12 @@ class VideoConfig:
         return self.enable_video
     
     def get_bg_volume(self) -> float:
-        """Returns 0 if bg music disabled, volume otherwise."""
-        return self.bg_music_volume if self.use_bg_music else 0.0
+        """Returns 0 if bg music disabled or file missing, volume otherwise."""
+        if not self.use_bg_music:
+            return 0.0
+        if not os.path.exists("bg_music.mp3"):
+            return 0.0
+        return self.bg_music_volume
 
 
 @dataclass
@@ -96,12 +101,29 @@ class MessageRepository:
     
     def add_message(self, message: Message):
         """Add a message to the conversation history."""
-        self._state.messages.append(message)
+        message_dict = {
+            "role": message.role,
+            "content": message.content,
+            "timestamp": message.timestamp
+        }
+        if message.video_path:
+            message_dict["video_path"] = message.video_path
+        self._state.messages.append(message_dict)
 
     def get_all_messages(self) -> List[Message]:
         """Retrieve all messages."""
-        return [Message(**msg) if isinstance(msg, dict) else msg 
-                for msg in self._state.messages]
+        messages = []
+        for msg in self._state.messages:
+            if isinstance(msg, dict):
+                messages.append(Message(
+                    role=msg["role"],
+                    content=msg["content"],
+                    timestamp=msg.get("timestamp", time.time()),
+                    video_path=msg.get("video_path")
+                ))
+            else:
+                messages.append(msg)
+        return messages
 
     def clear_all(self):
         """Clear all messages."""
@@ -116,17 +138,10 @@ class MessageRepository:
         if not self._state.messages:
             return
         last = self._state.messages[-1]
-        # handle stored dicts or Message objects
-        if isinstance(last, dict):
-            if content is not None:
-                last['content'] = content
-            if video_path is not None:
-                last['video_path'] = video_path
-        else:
-            if content is not None:
-                last.content = content
-            if video_path is not None:
-                last.video_path = video_path
+        if content is not None:
+            last['content'] = content
+        if video_path is not None:
+            last['video_path'] = video_path
 
 
 class ConfigRepository:
@@ -141,7 +156,6 @@ class ConfigRepository:
     
     def _ensure_initialized(self):
         """Initialize default configurations."""
-
         if "enable_tts" not in self._state:
             self._state.enable_tts = False
         if "enable_video" not in self._state:
@@ -208,7 +222,7 @@ class ContentGenerationService:
         """
         crew_response = self.crew_executor(prompt)
         
-        # Extract text from CrewOutput
+        # Convert CrewOutput to string
         if hasattr(crew_response, 'raw'):
             return str(crew_response.raw)
         elif hasattr(crew_response, 'result'):
@@ -296,38 +310,55 @@ class ChatPresenter:
         Main orchestration method for handling user input.
         Follows the Template Method pattern for consistent flow.
         """
-        # 1. Save user message
+        # 1. Save and display user message
         user_message = Message(role="user", content=prompt)
         self.message_repo.add_message(user_message)
         self.view.display_user_message(user_message)
         
-        # 2. Generate content (blocking, but we display text ASAP)
+        # 2. Generate content with custom loading animation
         try:
-            response_text = self._generate_response(prompt)
+            response_text = self._generate_response_with_loading(prompt)
             intro_text = str(UI_tools.get_intro_generator(prompt))
             
-            # Immediately create and display assistant message (so text is visible while media is created)
-            assistant_message = Message(role="assistant", content=intro_text+response_text)
-            self.message_repo.add_message(assistant_message)
-            self.view.display_message(assistant_message)   # show text quickly
+            # Combine intro and response
+            full_response = intro_text + response_text
             
-            # 3. Generate multimedia if needed (audio/video)
-            audio_bytes = self._handle_audio_generation(response_text)
-            video_path = self._handle_video_generation(response_text, audio_bytes)
+            # 3. Create assistant message and display text immediately
+            assistant_message = Message(role="assistant", content=full_response)
             
-            # 4. If video produced, update last assistant message and show the video
+            # Display text in chat (without saving to repo yet)
+            self.view.display_assistant_message_text(assistant_message)
+            
+            # 4. Generate multimedia if needed (audio/video)
+            audio_bytes = self._handle_audio_generation(full_response)
+            video_path = self._handle_video_generation(full_response, audio_bytes)
+            
+            # 5. Update message with video path if generated
             if video_path:
-                self.message_repo.update_last_message(video_path=video_path)
-                # Display video once now (display_message no longer auto-displays video)
-                self.view.display_video(video_path)
+                assistant_message.video_path = video_path
+            
+            # 6. Save complete message to repository
+            self.message_repo.add_message(assistant_message)
+            
+            # 7. Display video if generated
+            if video_path:
+                self.view.display_video(video_path, assistant_message.timestamp)
             
         except Exception as e:
             self._handle_error(e)
     
-    def _generate_response(self, prompt: str) -> str:
-        """Generate text response using content service."""
-        with self.view.show_spinner("Gorilla is thinking..."):
-            return self.content_service.generate_content(prompt)
+    def _generate_response_with_loading(self, prompt: str) -> str:
+        """Generate text response with custom loading animation."""
+        # Show custom loading animation
+        loading_placeholder = self.view.create_loading_placeholder()
+        
+        try:
+            # Generate content
+            response = self.content_service.generate_content(prompt)
+            return response
+        finally:
+            # Clear loading animation
+            self.view.clear_loading_placeholder(loading_placeholder)
     
     def _handle_audio_generation(self, text: str) -> Optional[bytes]:
         """Generate audio if TTS or video is enabled."""
@@ -371,7 +402,6 @@ class ChatPresenter:
                 
                 success_msg = self._build_video_success_message(video_config)
                 self.view.show_success(success_msg)
-                # do not call display_video here — presenter will call it after updating last message
                 return video_path
                 
         except FileNotFoundError:
@@ -382,6 +412,9 @@ class ChatPresenter:
             return None
         except Exception as e:
             self.view.show_error(f"❌ Video generation error: {str(e)}")
+            import traceback
+            with self.view.show_expander("Video Error Details"):
+                self.view.show_code(traceback.format_exc())
             return None
     
     def _build_video_status_message(self, config: VideoConfig) -> str:
@@ -389,7 +422,7 @@ class ChatPresenter:
         msg = "🎬 Generating video"
         if config.add_subtitles:
             msg += " with AI subtitles"
-        if config.use_bg_music:
+        if config.use_bg_music and os.path.exists("bg_music.mp3"):
             msg += f" and background music ({int(config.bg_music_volume * 100)}%)"
         return msg + "..."
     
@@ -398,7 +431,7 @@ class ChatPresenter:
         parts = ["✅ Video generated successfully!"]
         if config.add_subtitles:
             parts.append("🎯 Subtitles synced with Whisper AI")
-        if config.use_bg_music:
+        if config.use_bg_music and config.get_bg_volume() > 0:
             parts.append(f"🎵 Background music at {int(config.bg_music_volume * 100)}%")
         return " | ".join(parts)
     
@@ -439,6 +472,18 @@ class ChatView(Protocol):
         """Display user message."""
         ...
     
+    def display_assistant_message_text(self, message: Message):
+        """Display assistant message text only (no video)."""
+        ...
+    
+    def create_loading_placeholder(self):
+        """Create and return loading placeholder."""
+        ...
+    
+    def clear_loading_placeholder(self, placeholder):
+        """Clear loading placeholder."""
+        ...
+    
     def show_spinner(self, text: str):
         """Show loading spinner with text.""" 
         ...
@@ -447,7 +492,7 @@ class ChatView(Protocol):
         """Play audio in the UI.""" 
         ...
     
-    def display_video(self, video_path: str):
+    def display_video(self, video_path: str, timestamp: float):
         """Display video player.""" 
         ...
     
@@ -462,6 +507,10 @@ class ChatView(Protocol):
     def show_code(self, code: str):
         """Display code block.""" 
         ...
+    
+    def show_expander(self, title: str):
+        """Show expander context manager."""
+        ...
 
 
 class StreamlitChatView:
@@ -472,17 +521,51 @@ class StreamlitChatView:
         self.audio_handler = audio_handler
     
     def display_message(self, message: Message):
-        """Display a complete message with potential video (text-only)."""
+        """Display a complete message with potential video."""
         avatar = "🦍" if message.is_assistant() else None
         
         with self.st.chat_message(message.role, avatar=avatar):
-            # Show message text only; video is displayed via display_video to avoid duplication
             self.st.markdown(message.content)
+            
+            # Display video if it exists
+            if message.has_video():
+                self.st.video(message.video_path)
+                
+                # Download button with unique key
+                try:
+                    with open(message.video_path, 'rb') as f:
+                        video_bytes = f.read()
+                    
+                    self.st.download_button(
+                        label="⬇️ Download Video",
+                        data=video_bytes,
+                        file_name=f"gorilla_video_{int(message.timestamp)}.mp4",
+                        mime="video/mp4",
+                        key=f"download_{message.timestamp}"
+                    )
+                except Exception:
+                    pass
     
     def display_user_message(self, message: Message):
         """Display user message immediately."""
         with self.st.chat_message("user"):
             self.st.markdown(message.content)
+    
+    def display_assistant_message_text(self, message: Message):
+        """Display assistant message text only (within chat_message context)."""
+        with self.st.chat_message("assistant", avatar="🦍"):
+            self.st.markdown(message.content)
+    
+    def create_loading_placeholder(self):
+        """Create loading placeholder and show animation."""
+        placeholder = self.st.empty()
+        with placeholder.container():
+            UI_tools.show_loading_animation()
+        return placeholder
+    
+    def clear_loading_placeholder(self, placeholder):
+        """Clear loading placeholder."""
+        placeholder.empty()
     
     def show_spinner(self, text: str):
         """Return spinner context manager."""
@@ -490,34 +573,25 @@ class StreamlitChatView:
     
     def play_audio(self, audio_bytes: bytes):
         """Play audio using autoplay."""
-        self.audio_handler.autoplay_audio(
-            audio_bytes,
-            lambda html: self.st.markdown(html, unsafe_allow_html=True)
-        )
+        self.audio_handler.autoplay_audio(audio_bytes)
     
-    def display_video(self, video_path: str):
-        """Display video player with download button (unique download key)."""
-        # Display the video
+    def display_video(self, video_path: str, timestamp: float):
+        """Display video player with download button."""
         self.st.video(video_path)
         
-        # Read bytes for download
         try:
             with open(video_path, 'rb') as f:
                 video_bytes = f.read()
-        except Exception:
-            self.show_error("Could not read generated video for download.")
-            return
-        
-        # Use UUID to ensure unique widget key across reruns/calls
-        unique_key = f"download_{int(time.time()*1000)}_{uuid.uuid4().hex[:8]}"
-        
-        self.st.download_button(
-            label="⬇️ Download Video",
-            data=video_bytes,
-            file_name=f"gorilla_video_{int(time.time())}.mp4",
-            mime="video/mp4",
-            key=unique_key
-        )
+            
+            self.st.download_button(
+                label="⬇️ Download Video",
+                data=video_bytes,
+                file_name=f"gorilla_video_{int(timestamp)}.mp4",
+                mime="video/mp4",
+                key=f"download_current_{int(time.time() * 1000)}"
+            )
+        except Exception as e:
+            self.show_error(f"Could not read video for download: {e}")
     
     def show_success(self, message: str):
         """Show success message."""
@@ -528,9 +602,12 @@ class StreamlitChatView:
         self.st.error(message)
     
     def show_code(self, code: str):
-        """Display code in expander."""
-        with self.st.expander("Error Details"):
-            self.st.code(code)
+        """Display code block."""
+        self.st.code(code)
+    
+    def show_expander(self, title: str):
+        """Show expander context manager."""
+        return self.st.expander(title)
 
 
 # ============================================================================
@@ -560,21 +637,7 @@ class GorillaStudioApp:
     
     def _apply_custom_styling(self):
         """Apply custom CSS."""
-        self.st.markdown("""
-        <style>
-            .stChatInput textarea::placeholder {
-                color: rgba(0, 0, 0, 0.35);
-                opacity: 1;
-            }
-            [data-theme="dark"] .stChatInput textarea::placeholder {
-                color: rgba(255, 255, 255, 0.4);
-            }
-            .stSlider > label {
-                font-weight: 600;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-        UI_tools.setUp_CSS(self.st)
+        setUp_CSS(self.st)
     
     def _initialize_components(self):
         """Initialize all application components.""" 
@@ -584,7 +647,7 @@ class GorillaStudioApp:
         
         # Handlers
         if "audio_handler" not in self.st.session_state:
-            self.st.session_state.audio_handler = Audio()
+            self.st.session_state.audio_handler = Audio(prefer_gpu=True)
         
         if "video_handler" not in self.st.session_state:
             self.st.session_state.video_handler = VideoGenerator(
@@ -617,7 +680,7 @@ class GorillaStudioApp:
         with self.st.sidebar:
             self.st.title("🦍 Gorilla Engine")
             self.st.markdown("### Content Generation Suite")
-            self.st.markdown("---")
+            self.st.markdown("---") 
             
             self.st.caption("Manage Conversation")
             self.st.button(
@@ -636,11 +699,13 @@ class GorillaStudioApp:
             )
             self.config_repo.update_tts_enabled(enabled)
             
+            # Audio tester and video settings
             UI_tools.sidebar_audio_tester(self.st, Audio)
             UI_tools.sidebar_video_settings(self.st)
     
     def render_welcome_screen(self):
         """Render welcome screen for new conversations.""" 
+        # Display circular image
         UI_tools.circular_image(bs64, self.st)
         
         self.st.markdown("""
@@ -650,11 +715,17 @@ class GorillaStudioApp:
             </div>
         """, unsafe_allow_html=True)
         
+        # Display quick start prompts
         UI_tools.display_quick_start_prompts(self.st)
+    
+    def render_sidebar_animation(self):
+        """Render animated gorilla in sidebar."""
+        UI_tools.gorrilla_sideBar_animation(self.st)
     
     def run(self):
         """Main application loop.""" 
         self.render_sidebar()
+        self.render_sidebar_animation()
         
         # Handle quick start prompts
         if "user_prompt" in self.st.session_state:
