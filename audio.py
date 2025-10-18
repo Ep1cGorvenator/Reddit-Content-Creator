@@ -2,7 +2,6 @@ import streamlit as st
 import base64
 import io
 from gtts import gTTS
-from UI_tools import get_intro_generator
 
 
 class Audio:

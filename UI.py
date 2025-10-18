@@ -2,7 +2,8 @@
 import streamlit as st
 import base64 as bs64
 import time
-import UI_tools 
+import UI_tools
+from UI_CSS import setUp_CSS 
 from audio import Audio
 from video_gen import VideoGenerator
 import tempfile
@@ -33,25 +34,12 @@ st.set_page_config(
 )
 
 # --- Custom Styling ---
-st.markdown("""
-<style>
-    /* Light Mode Placeholder */
-    .stChatInput textarea::placeholder {
-        color: rgba(0, 0, 0, 0.35);
-        opacity: 1;
-    }
-    /* Dark Mode Placeholder */
-    [data-theme="dark"] .stChatInput textarea::placeholder {
-        color: rgba(255, 255, 255, 0.4);
-    }
-    
-    /* Make slider labels more visible */
-    .stSlider > label {
-        font-weight: 600;
-    }
-</style>
-""", unsafe_allow_html=True)
-UI_tools.setUp_CSS(st)
+setUp_CSS(st)
+
+#--- ADD MONKEY SIDE BAR ---
+#add animated Iframe
+UI_tools.gorrilla_sideBar_animation(st)
+
 
 # --- Session State Initialization ---
 if "messages" not in st.session_state:
@@ -126,118 +114,119 @@ def process_prompt(prompt: str):
 
     # Display the agent's response
     with st.chat_message("assistant", avatar="🦍"):
-        with st.spinner("Gorilla is thinking..."):
-            try:
-                # Call agent logic
-                crew_response = run_crew(prompt)
+        # Create a placeholder for custom loading animation
+        loading_placeholder = st.empty()
+        
+        with loading_placeholder.container():
+            # Show custom loading animation
+            UI_tools.show_loading_animation()
+        
+        try:
+            # Call agent logic
+            crew_response = run_crew(prompt)
 
-                # Get a random intro generator
-                intro_cycle = str(UI_tools.get_intro_generator(prompt))
+            # Clear the loading animation
+            loading_placeholder.empty()
 
-                # Convert CrewOutput to string
-                if hasattr(crew_response, 'raw'):
-                    response = intro_cycle + str(crew_response.raw)
-                elif hasattr(crew_response, 'result'):
-                    response = intro_cycle + str(crew_response.result)
+            # Get a random intro generator
+            intro_cycle = str(UI_tools.get_intro_generator(prompt))
+
+            # Display the response
+            st.markdown(response)
+            
+            # Generate audio bytes (always generate if TTS or Video is enabled)
+            audio_bytes = None
+            if st.session_state.enable_tts or st.session_state.enable_video:
+                with st.spinner("🎵 Generating audio..."):
+                    clean_text = st.session_state.audio_handler.clean_text_for_speech(response)
+                    audio_bytes = st.session_state.audio_handler.text_to_speech(
+                        clean_text, 
+                        st.session_state.selected_voice
+                    )
+            
+            # Play audio if TTS is enabled
+            if st.session_state.enable_tts and audio_bytes:
+                st.session_state.audio_handler.autoplay_audio(audio_bytes)
+            
+            # Generate video if enabled
+            video_path = None
+            if st.session_state.enable_video and audio_bytes:
+                if not os.path.exists("base_video.mp4"):
+                    st.error("❌ Cannot generate video: base_video.mp4 not found!")
+                    st.info("Place your video as 'base_video.mp4' in the same folder as UI.py")
+                elif st.session_state.video_handler is None:
+                    st.error("❌ Video handler not initialized!")
                 else:
-                    response = intro_cycle + str(crew_response)
-
-                # Display the response
-                st.markdown(response)
-                
-                # Generate audio bytes (always generate if TTS or Video is enabled)
-                audio_bytes = None
-                if st.session_state.enable_tts or st.session_state.enable_video:
-                    with st.spinner("🎵 Generating audio..."):
-                        clean_text = st.session_state.audio_handler.clean_text_for_speech(response)
-                        audio_bytes = st.session_state.audio_handler.text_to_speech(
-                            clean_text, 
-                            st.session_state.selected_voice
-                        )
-                
-                # Play audio if TTS is enabled
-                if st.session_state.enable_tts and audio_bytes:
-                    st.session_state.audio_handler.autoplay_audio(audio_bytes)
-                
-                # Generate video if enabled
-                video_path = None
-                if st.session_state.enable_video and audio_bytes:
-                    if not os.path.exists("base_video.mp4"):
-                        st.error("❌ Cannot generate video: base_video.mp4 not found!")
-                        st.info("Place your video as 'base_video.mp4' in the same folder as UI.py")
-                    elif st.session_state.video_handler is None:
-                        st.error("❌ Video handler not initialized!")
-                    else:
-                        # Determine background music volume (0 if disabled)
-                        bg_vol = st.session_state.bg_music_volume if (
-                            st.session_state.use_bg_music and 
-                            os.path.exists("bg_music.mp3")
-                        ) else 0.0
-                        
-                        # Build status message
-                        status_msg = "🎬 Generating video"
-                        if st.session_state.add_subtitles:
-                            status_msg += " with AI subtitles"
-                        if bg_vol > 0:
-                            status_msg += f" and background music ({int(bg_vol * 100)}%)"
-                        status_msg += "..."
-                        
-                        with st.spinner(status_msg):
-                            try:
-                                output_path = os.path.join(
-                                    tempfile.gettempdir(),
-                                    f"gorilla_video_{int(time.time())}.mp4"
-                                )
-                                
-                                clean_text = st.session_state.audio_handler.clean_text_for_speech(response)
-                                
-                                video_path = st.session_state.video_handler.generate_video_from_audio(
-                                    audio_bytes=audio_bytes,
-                                    text=clean_text,
-                                    output_path=output_path,
-                                    add_subtitles=st.session_state.add_subtitles,
-                                    bg_music_volume=bg_vol
-                                )
-                                
-                                # Success message with details
-                                success_parts = ["✅ Video generated successfully!"]
-                                if st.session_state.add_subtitles:
-                                    success_parts.append("🎯 Subtitles synced with Whisper AI")
-                                if bg_vol > 0:
-                                    success_parts.append(f"🎵 Background music at {int(bg_vol * 100)}%")
-                                
-                                st.success(" | ".join(success_parts))
-                                
-                                # Display the video
-                                st.video(video_path)
-                                
-                                # Download button
-                                with open(video_path, 'rb') as f:
-                                    video_bytes = f.read()
-                                
-                                st.download_button(
-                                    label="⬇️ Download Video",
-                                    data=video_bytes,
-                                    file_name=f"gorilla_video_{int(time.time())}.mp4",
-                                    mime="video/mp4",
-                                    key=f"download_current_{int(time.time())}"
-                                )
-                                
-                            except Exception as e:
-                                st.error(f"❌ Video generation error: {str(e)}")
-                                import traceback
-                                with st.expander("Video Error Details"):
-                                    st.code(traceback.format_exc())
-                # Generate TTS if enabled using the Audio class
-                play_audio(response)
-                
-            except Exception as e:
-                error_message = f"Sorry, an error occurred: {e}"
-                st.error(error_message)
-                import traceback
-                st.code(traceback.format_exc())
-                response = error_message
-                video_path = None
+                    # Determine background music volume (0 if disabled)
+                    bg_vol = st.session_state.bg_music_volume if (
+                        st.session_state.use_bg_music and 
+                        os.path.exists("bg_music.mp3")
+                    ) else 0.0
+                    
+                    # Build status message
+                    status_msg = "🎬 Generating video"
+                    if st.session_state.add_subtitles:
+                        status_msg += " with AI subtitles"
+                    if bg_vol > 0:
+                        status_msg += f" and background music ({int(bg_vol * 100)}%)"
+                    status_msg += "..."
+                    
+                    with st.spinner(status_msg):
+                        try:
+                            output_path = os.path.join(
+                                tempfile.gettempdir(),
+                                f"gorilla_video_{int(time.time())}.mp4"
+                            )
+                            
+                            clean_text = st.session_state.audio_handler.clean_text_for_speech(response)
+                            
+                            video_path = st.session_state.video_handler.generate_video_from_audio(
+                                audio_bytes=audio_bytes,
+                                text=clean_text,
+                                output_path=output_path,
+                                add_subtitles=st.session_state.add_subtitles,
+                                bg_music_volume=bg_vol
+                            )
+                            
+                            # Success message with details
+                            success_parts = ["✅ Video generated successfully!"]
+                            if st.session_state.add_subtitles:
+                                success_parts.append("🎯 Subtitles synced with Whisper AI")
+                            if bg_vol > 0:
+                                success_parts.append(f"🎵 Background music at {int(bg_vol * 100)}%")
+                            
+                            st.success(" | ".join(success_parts))
+                            
+                            # Display the video
+                            st.video(video_path)
+                            
+                            # Download button
+                            with open(video_path, 'rb') as f:
+                                video_bytes = f.read()
+                            
+                            st.download_button(
+                                label="⬇️ Download Video",
+                                data=video_bytes,
+                                file_name=f"gorilla_video_{int(time.time())}.mp4",
+                                mime="video/mp4",
+                                key=f"download_current_{int(time.time())}"
+                            )
+                            
+                        except Exception as e:
+                            st.error(f"❌ Video generation error: {str(e)}")
+                            import traceback
+                            with st.expander("Video Error Details"):
+                                st.code(traceback.format_exc())
+            # Generate TTS if enabled using the Audio class
+            play_audio(response)
+            
+        except Exception as e:
+            error_message = f"Sorry, an error occurred: {e}"
+            st.error(error_message)
+            import traceback
+            st.code(traceback.format_exc())
+            response = error_message
+            video_path = None
 
     # Append the agent's response to the history with video path
     message_data = {
