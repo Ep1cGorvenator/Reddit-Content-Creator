@@ -42,24 +42,24 @@ def setUp_CSS(st):
                 display: flex;
                 flex-direction: column;
                 align-items: center;       /* horizontal centering */
+                justify-content: center;   /* vertical centering */
                 text-align: center;
+                width: 100%;
+                margin: 0 auto;
             }
 
-            /* Style text for better visual hierarchy */
+            /* Style text for better visual hierarchy - Auto adapting */
             .welcome-container h1 {
                 font-size: 2.5rem;
                 font-weight: 700;
                 margin-bottom: 0.5rem;
-                color: rgba(255, 255, 255, 1);
+                color: var(--text-color) !important;  /* Uses Streamlit's theme color */
             }
 
             .welcome-container p {
                 font-size: 1.2rem;
-                color: rgba(255, 255, 255, 0.9);
-            }
-                
-            [data-theme="dark"] .welcome-container p {
-                color: rgba(220, 220, 220, 0.8);
+                color: var(--text-color) !important;  /* Uses Streamlit's theme color */
+                margin-top: 0;
             }
                 
             .quick-start-title {

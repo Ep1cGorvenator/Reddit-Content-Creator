@@ -71,34 +71,44 @@ def process_prompt(prompt: str):
 
     # Display the agent's response
     with st.chat_message("assistant", avatar="🦍"):
-        with st.spinner("Gorilla is thinking..."):
-            try:
-                # Call agent logic
-                crew_response = run_crew(prompt)
+        # Create a placeholder for custom loading animation
+        loading_placeholder = st.empty()
+        
+        with loading_placeholder.container():
+            # Show custom loading animation
+            UI_tools.show_loading_animation()
+        
+        try:
+            # Call agent logic
+            crew_response = run_crew(prompt)
 
-                # Get a random intro generator
-                intro_cycle = str(UI_tools.get_intro_generator(prompt))
+            # Clear the loading animation
+            loading_placeholder.empty()
 
-                # Convert CrewOutput to string
-                if hasattr(crew_response, 'raw'):
-                    response = intro_cycle + str(crew_response.raw)
-                elif hasattr(crew_response, 'result'):
-                    response = intro_cycle + str(crew_response.result)
-                else:
-                    response = intro_cycle + str(crew_response)
+            # Get a random intro generator
+            intro_cycle = str(UI_tools.get_intro_generator(prompt))
 
-                # Display the response
-                st.markdown(response)
-                
-                # Generate TTS if enabled using the Audio class
-                play_audio(response)
-                
-            except Exception as e:
-                error_message = f"Sorry, an error occurred: {e}"
-                st.error(error_message)
-                import traceback
-                st.code(traceback.format_exc())
-                response = error_message
+            # Convert CrewOutput to string
+            if hasattr(crew_response, 'raw'):
+                response = intro_cycle + str(crew_response.raw)
+            elif hasattr(crew_response, 'result'):
+                response = intro_cycle + str(crew_response.result)
+            else:
+                response = intro_cycle + str(crew_response)
+
+            # Display the response
+            st.markdown(response)
+            
+            # Generate TTS if enabled using the Audio class
+            play_audio(response)
+            
+        except Exception as e:
+            loading_placeholder.empty()
+            error_message = f"Sorry, an error occurred: {e}"
+            st.error(error_message)
+            import traceback
+            st.code(traceback.format_exc())
+            response = error_message
 
     # Append the agent's response to the history
     st.session_state.messages.append({"role": "assistant", "content": response})

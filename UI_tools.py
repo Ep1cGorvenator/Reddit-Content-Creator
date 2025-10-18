@@ -1,6 +1,26 @@
 import random
 from UI_IntroPrompts import ALL_QUICK_START_PROMPTS
 
+def get_intro_generator(prompt):
+    """Generate a random intro phrase for the response that includes the user's prompt"""
+    import random
+    
+    intros = [
+        f"**Alright, let's create some content about:** *\"{prompt}\"*\n\n",
+        f"**Time to get creative!** You asked for: *\"{prompt}\"*\n\n",
+        f"**Gorilla Studios is on it!** Here's your content for: *\"{prompt}\"*\n\n",
+        f"**Let me craft something special about:** *\"{prompt}\"*\n\n",
+        f"**Perfect! Let's build content around:** *\"{prompt}\"*\n\n",
+        f"**Content creation mode activated!** Topic: *\"{prompt}\"*\n\n",
+        f"**Here's what I've cooked up for:** *\"{prompt}\"*\n\n",
+        f"**Time to make some magic happen!** Your request: *\"{prompt}\"*\n\n",
+        f"**Let's crush this content piece about:** *\"{prompt}\"*\n\n",
+        f"**Gorilla brain engaged!** Creating content for: *\"{prompt}\"*\n\n",
+        f"**Ready to make this viral-worthy?** Topic: *\"{prompt}\"*\n\n",
+        f"**Let's turn this into gold:** *\"{prompt}\"*\n\n",
+    ]
+    
+    return random.choice(intros)
 # --- CHAT UTILITIES ---
 def clear_chat_history(st):
     """
@@ -161,3 +181,88 @@ def gorrilla_sideBar_animation(st):
     </body>
     """
     com.html(html_code, width=500, height=300, scrolling=False)
+
+def show_loading_animation():
+    """Display custom loading animation with text using Lottie"""
+    import streamlit.components.v1 as com
+    import json
+    
+    with open(r"C:\UnityProjects\301Project\Reddit-Content-Creator\movingHand.json", "r") as f:
+        lottie_json = json.load(f)
+    
+    lottie_str = json.dumps(lottie_json)
+    html_code = f"""
+    <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        html, body {{
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        
+        #loading-wrapper {{
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }}
+        
+        #loading-text {{
+            font-size: 24px;
+            font-weight: 600;
+            color: #34D399;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            animation: pulse 1.5s ease-in-out infinite;
+        }}
+        
+        #loading-container {{
+            width: 150px;
+            height: 150px;
+        }}
+        
+        @keyframes pulse {{
+            0%, 100% {{
+                opacity: 1;
+            }}
+            50% {{
+                opacity: 0.5;
+            }}
+        }}
+        
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {{
+            #loading-text {{
+                color: #34D399;
+            }}
+        }}
+    </style>
+    </head>
+    <body>
+    <div id="loading-wrapper">
+        <div id="loading-text">Gorilla is thinking...</div>
+        <div id="loading-container"></div>
+    </div>
+    <script>
+        var animationData = {lottie_str};
+        var animation = lottie.loadAnimation({{
+            container: document.getElementById('loading-container'),
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            animationData: animationData
+        }});
+    </script>
+    </body>
+    """
+    
+    com.html(html_code, width=400, height=100, scrolling=False)
