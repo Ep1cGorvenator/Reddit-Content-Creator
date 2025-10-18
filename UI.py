@@ -58,7 +58,7 @@ class VideoConfig:
     enable_video: bool = False
     add_subtitles: bool = False
     use_bg_music: bool = False
-    bg_music_volume: float = 0.3
+    bg_music_volume: float = 0.1
     
     def is_enabled(self) -> bool:
         return self.enable_video
@@ -207,15 +207,14 @@ class ContentGenerationService:
             Generated content string
         """
         crew_response = self.crew_executor(prompt)
-        intro = str(UI_tools.get_intro_generator(prompt))
         
         # Extract text from CrewOutput
         if hasattr(crew_response, 'raw'):
-            return intro + str(crew_response.raw)
+            return str(crew_response.raw)
         elif hasattr(crew_response, 'result'):
-            return intro + str(crew_response.result)
+            return str(crew_response.result)
         else:
-            return intro + str(crew_response)
+            return str(crew_response)
     
     def generate_audio(self, text: str, voice_name: str) -> Optional[bytes]:
         """
@@ -305,9 +304,10 @@ class ChatPresenter:
         # 2. Generate content (blocking, but we display text ASAP)
         try:
             response_text = self._generate_response(prompt)
+            intro_text = str(UI_tools.get_intro_generator(prompt))
             
             # Immediately create and display assistant message (so text is visible while media is created)
-            assistant_message = Message(role="assistant", content=response_text)
+            assistant_message = Message(role="assistant", content=intro_text+response_text)
             self.message_repo.add_message(assistant_message)
             self.view.display_message(assistant_message)   # show text quickly
             
@@ -554,7 +554,7 @@ class GorillaStudioApp:
         self.st.set_page_config(
             page_title="Gorilla Studios AI",
             page_icon="🦍",
-            layout="centered",
+            layout="wide",
             initial_sidebar_state="auto",
         )
     
