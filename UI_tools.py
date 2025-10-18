@@ -105,12 +105,12 @@ def gorrilla_sideBar_animation(st):
         body {{
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow: visible;
         }}
         #lottie-container {{
             position: fixed;
-            left: 0px;
-            top: 50%;
+            left: -199px;
+            top: 65%;
             transform: translateY(-50%) rotate(-90deg);
             width: 480px;
             height: 270px;
