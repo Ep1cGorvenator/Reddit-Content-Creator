@@ -100,3 +100,5 @@ The sidebar on the left (click the `>` arrow to open it or the hanging Gorrila) 
 - **Video Settings:**
   - **Enable Video Generation:** Check this box if you want the agent to generate a video file based on the text content.
   - **Use Background Music:** This toggle becomes active with video generation, allowing you to include pre-loaded background music in the final video.
+
+## NOTE: API keys are private, to utilise this system, place your relevant API keys in the .env file
